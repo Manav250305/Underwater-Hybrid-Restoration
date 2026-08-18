@@ -4,6 +4,10 @@
 VIT — School of Computer Science and Engineering | BCSE403L Digital Image Processing | Fall 2026-2027
 Team: Kopal Sachan (23BCE0238), Yathaartha Srivastava (23BCE0543), Manav Prakash (23BCE0548)
 
+![Demo](outputs/demo.gif)
+
+*Live demo of the [Streamlit frontend](#9-interactive-demo-streamlit) — comparison, pipeline stages, metrics, and live ablation toggles.*
+
 ---
 
 ## 1. Pipeline Overview
