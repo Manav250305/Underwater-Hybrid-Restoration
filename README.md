@@ -1,6 +1,7 @@
 # Hybrid Adaptive Color Correction, CLAHE, and Dehazing Framework for Underwater Image Restoration and Quality Enhancement
 
-VIT — School of Computer Science and Engineering | BCSE403L Digital Image Processing | Fall 2026-2027
+
+VIT — School of Computer Science and Engineering | Project for BCSE403L Digital Image Processing | Fall 2026-2027
 Team: Kopal Sachan (23BCE0238), Yathaartha Srivastava (23BCE0543), Manav Prakash (23BCE0548)
 
 ![Demo](outputs/demo.gif)
