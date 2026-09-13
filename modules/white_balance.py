@@ -9,18 +9,24 @@ rather than a fixed gain.
 import numpy as np
 
 
-def adaptive_white_balance(img_bgr: np.ndarray, clip_percentile: float = 0.5) -> np.ndarray:
+def estimate_wb_gains(img_bgr: np.ndarray, clip_percentile: float = 0.5, max_gain: float = 4.0) -> tuple:
     """
-    Apply adaptive Gray-World white balance with von Kries channel gains.
+    Estimate the (gain_b, gain_g, gain_r) von Kries diagonal gray-world gains
+    for an image, without applying them. Split out from adaptive_white_balance
+    so callers that need the raw per-frame gain estimate (e.g. the video
+    pipeline's temporal EMA smoothing, see modules/video_pipeline.py) can get
+    it directly instead of re-deriving it from the balanced output.
 
     Args:
         img_bgr: input image, uint8, shape (H, W, 3), BGR order (OpenCV convention).
         clip_percentile: percentile used to clip extreme highlights before
             computing channel statistics, so a few bright pixels don't skew
             the gain estimate.
+        max_gain: cap on any channel's gain (and its reciprocal), so a
+            channel with very little signal left isn't over-saturated.
 
     Returns:
-        White-balanced image, uint8, same shape as input.
+        (gain_b, gain_g, gain_r) floats.
     """
     img = img_bgr.astype(np.float32)
     b, g, r = img[:, :, 0], img[:, :, 1], img[:, :, 2]
@@ -42,9 +48,16 @@ def adaptive_white_balance(img_bgr: np.ndarray, clip_percentile: float = 0.5) ->
 
     # Underwater images typically need the strongest boost on red; cap gains
     # to avoid over-saturating a channel that has very little signal left.
-    max_gain = 4.0
-    gain_b, gain_g, gain_r = (np.clip(g_, 1.0 / max_gain, max_gain)
+    gain_b, gain_g, gain_r = (float(np.clip(g_, 1.0 / max_gain, max_gain))
                                for g_ in (gain_b, gain_g, gain_r))
+    return gain_b, gain_g, gain_r
+
+
+def apply_wb_gains(img_bgr: np.ndarray, gain_b: float, gain_g: float, gain_r: float) -> np.ndarray:
+    """Apply a given set of per-channel gray-world gains (from estimate_wb_gains,
+    or an EMA-smoothed version of it for video) to an image."""
+    img = img_bgr.astype(np.float32)
+    b, g, r = img[:, :, 0], img[:, :, 1], img[:, :, 2]
 
     out = np.empty_like(img)
     out[:, :, 0] = b * gain_b
@@ -53,6 +66,23 @@ def adaptive_white_balance(img_bgr: np.ndarray, clip_percentile: float = 0.5) ->
 
     out = np.clip(out, 0, 255).astype(np.uint8)
     return out
+
+
+def adaptive_white_balance(img_bgr: np.ndarray, clip_percentile: float = 0.5) -> np.ndarray:
+    """
+    Apply adaptive Gray-World white balance with von Kries channel gains.
+
+    Args:
+        img_bgr: input image, uint8, shape (H, W, 3), BGR order (OpenCV convention).
+        clip_percentile: percentile used to clip extreme highlights before
+            computing channel statistics, so a few bright pixels don't skew
+            the gain estimate.
+
+    Returns:
+        White-balanced image, uint8, same shape as input.
+    """
+    gains = estimate_wb_gains(img_bgr, clip_percentile=clip_percentile)
+    return apply_wb_gains(img_bgr, *gains)
 
 
 def estimate_color_cast_severity(img_bgr: np.ndarray) -> dict:

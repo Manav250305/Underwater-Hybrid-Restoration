@@ -100,6 +100,8 @@ def restore_image(img_bgr: np.ndarray, use_water_type_routing: bool = True,
         result["fusion_alpha"] = opt["best_alpha"]
         result["fusion_score"] = opt["best_score"]
         result["fusion_search_history"] = opt["history"]
+        result["fusion_grid_history"] = opt["grid_history"]
+        result["fusion_bracket"] = opt["bracket"]
     else:
         restored = multiscale_fusion(clahe_img, dehazed_img, alpha=fixed_alpha)
         result["fusion_alpha"] = fixed_alpha
