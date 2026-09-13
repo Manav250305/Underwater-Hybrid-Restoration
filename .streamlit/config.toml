@@ -1,0 +1,11 @@
+# Theme tokens mirror the palette defined at the top of streamlit_app.py
+# (CATEGORICAL, INK_PRIMARY, GRID_COLOR, CHART_SURFACE) so the app chrome
+# matches the matplotlib charts instead of using Streamlit's defaults.
+# Keep these two files in sync if that palette ever changes.
+[theme]
+base = "light"
+backgroundColor = "#fcfcfb"          # = CHART_SURFACE, so charts sit flush with the page
+secondaryBackgroundColor = "#f3f2ee" # slightly deeper than CHART_SURFACE, for sidebar/cards
+primaryColor = "#2a78d6"             # = CATEGORICAL[0], used for buttons/active-tab/slider
+textColor = "#0b0b0b"                # = INK_PRIMARY
+font = "sans serif"

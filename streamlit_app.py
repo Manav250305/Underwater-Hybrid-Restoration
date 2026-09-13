@@ -17,6 +17,7 @@ Sidebar toggles let Water-Type Routing (Module 5) and the Fusion Optimizer
 (Module 7) be switched on/off live, for demoing the ablation in real time.
 """
 
+import os
 import random
 
 import cv2
@@ -57,6 +58,140 @@ GRID_COLOR = "#e1e0d9"
 CHART_SURFACE = "#fcfcfb"
 
 
+def _mix_hex(c1: str, c2: str, t: float) -> str:
+    """Mix two hex colors: t=1 -> pure c1, t=0 -> pure c2. Used to derive muted/
+    tinted variants (alert boxes, status pills) from the existing palette tokens
+    above instead of hand-picking new hex values."""
+    a = tuple(int(c1.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    b = tuple(int(c2.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    mixed = tuple(max(0, min(255, round(a[i] * t + b[i] * (1 - t)))) for i in range(3))
+    return "#{:02x}{:02x}{:02x}".format(*mixed)
+
+
+# Desaturated alert-box variants: same hue family as Streamlit's default
+# info/success/error (blue/green/red, already in CATEGORICAL), muted toward
+# INK_SECONDARY / CHART_SURFACE so they sit next to the warm neutral palette
+# instead of reading as a bright saturated insert.
+_ALERT_HUES = {"info": CATEGORICAL[0], "success": CATEGORICAL[2],
+               "warning": CATEGORICAL[3], "error": CATEGORICAL[7]}
+_ALERT_STYLE = {
+    kind: {
+        "text": _mix_hex(hue, INK_SECONDARY, 0.6),
+        "bg": _mix_hex(hue, CHART_SURFACE, 0.10),
+        "border": _mix_hex(hue, CHART_SURFACE, 0.28),
+    }
+    for kind, hue in _ALERT_HUES.items()
+}
+
+# Status-pill variants for the header badge row (Task 3): ON state uses
+# NOVEL_COLOR, OFF state uses BASELINE_COLOR, mirroring the exact novel/
+# baseline color coding from the About tab's pipeline-diagram legend; a
+# neutral variant for purely informational pills (image name, dimensions).
+_PILL_STYLE = {
+    "novel": {"text": _mix_hex(NOVEL_COLOR, INK_SECONDARY, 0.65),
+              "bg": _mix_hex(NOVEL_COLOR, CHART_SURFACE, 0.14),
+              "border": _mix_hex(NOVEL_COLOR, CHART_SURFACE, 0.35)},
+    "baseline": {"text": _mix_hex(BASELINE_COLOR, INK_SECONDARY, 0.65),
+                 "bg": _mix_hex(BASELINE_COLOR, CHART_SURFACE, 0.14),
+                 "border": _mix_hex(BASELINE_COLOR, CHART_SURFACE, 0.35)},
+    "neutral": {"text": INK_SECONDARY,
+                "bg": _mix_hex(GRID_COLOR, CHART_SURFACE, 0.55),
+                "border": GRID_COLOR},
+}
+
+
+def _inject_theme_css():
+    """
+    CSS for the elements .streamlit/config.toml's theme tokens don't fully
+    reach (verified in-browser, not assumed): inactive-tab ink color, the
+    sidebar/main visual boundary, st.metric's label/value ink hierarchy,
+    st.divider()'s color, and alert-box desaturation. Primary buttons and
+    the active-tab indicator already pick up CATEGORICAL[0] correctly from
+    the theme config alone (checked via computed styles) so they're
+    deliberately left untouched here to avoid redundant, riskier overrides.
+    Matplotlib chart styling (_style_axes etc.) is untouched by design.
+    """
+    st.markdown(f"""
+    <style>
+    /* Sidebar: secondaryBackgroundColor is already applied by the theme but
+       is too close in luminance to the main background to read as a distinct
+       panel on its own — add an explicit boundary. */
+    [data-testid="stSidebar"] {{
+        border-right: 1px solid {GRID_COLOR};
+    }}
+
+    /* Tabs: inactive tabs in INK_SECONDARY (theme already colors the active
+       tab + its underline with primaryColor / CATEGORICAL[0] correctly). */
+    [data-testid="stTab"][aria-selected="false"] {{
+        color: {INK_SECONDARY};
+    }}
+    [data-testid="stTab"][aria-selected="false"] p {{
+        color: {INK_SECONDARY};
+    }}
+
+    /* st.metric: label dimmer than value, matching the ink hierarchy used
+       in the matplotlib charts (INK_SECONDARY for axis ticks, INK_PRIMARY
+       for data-forward ink). */
+    [data-testid="stMetricLabel"] {{
+        color: {INK_SECONDARY};
+    }}
+    [data-testid="stMetricValue"] {{
+        color: {INK_PRIMARY};
+    }}
+
+    /* st.divider() renders as a plain <hr> inside a markdown container. */
+    [data-testid="stMarkdownContainer"] hr {{
+        border-color: {GRID_COLOR};
+    }}
+
+    /* Alert boxes: same semantic hue, desaturated (see _ALERT_STYLE above). */
+    [data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) {{
+        background-color: {_ALERT_STYLE['info']['bg']};
+        border: 1px solid {_ALERT_STYLE['info']['border']};
+    }}
+    [data-testid="stAlertContentInfo"] {{ color: {_ALERT_STYLE['info']['text']}; }}
+
+    [data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) {{
+        background-color: {_ALERT_STYLE['success']['bg']};
+        border: 1px solid {_ALERT_STYLE['success']['border']};
+    }}
+    [data-testid="stAlertContentSuccess"] {{ color: {_ALERT_STYLE['success']['text']}; }}
+
+    [data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) {{
+        background-color: {_ALERT_STYLE['warning']['bg']};
+        border: 1px solid {_ALERT_STYLE['warning']['border']};
+    }}
+    [data-testid="stAlertContentWarning"] {{ color: {_ALERT_STYLE['warning']['text']}; }}
+
+    [data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]) {{
+        background-color: {_ALERT_STYLE['error']['bg']};
+        border: 1px solid {_ALERT_STYLE['error']['border']};
+    }}
+    [data-testid="stAlertContentError"] {{ color: {_ALERT_STYLE['error']['text']}; }}
+
+    /* Header status pills (Task 3) */
+    .status-pill-row {{ display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 18px; }}
+    .status-pill {{
+        display: inline-block; padding: 3px 10px; border-radius: 999px;
+        font-size: 0.8rem; line-height: 1.4; border: 1px solid transparent;
+        white-space: nowrap;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def status_pill(label: str, kind: str = "neutral") -> str:
+    """One HTML pill for the header status row. kind in {'novel','baseline','neutral'}
+    (see _PILL_STYLE) -- 'novel'/'baseline' reuse the exact same color coding as
+    NOVEL_COLOR/BASELINE_COLOR in the About tab's pipeline-diagram legend."""
+    s = _PILL_STYLE[kind]
+    return (f'<span class="status-pill" style="background:{s["bg"]}; '
+            f'color:{s["text"]}; border-color:{s["border"]};">{label}</span>')
+
+
+_inject_theme_css()
+
+
 def _style_axes(ax):
     ax.set_facecolor(CHART_SURFACE)
     ax.spines[["top", "right"]].set_visible(False)
@@ -73,6 +208,24 @@ def _style_axes(ax):
 
 def bgr_to_rgb(img_bgr: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+
+
+def encode_png(img_bgr: np.ndarray) -> bytes:
+    """PNG-encode a BGR image (OpenCV's native order) to bytes for a download button."""
+    ok, buf = cv2.imencode(".png", img_bgr)
+    if not ok:
+        raise ValueError("PNG encoding failed")
+    return buf.tobytes()
+
+
+def image_with_download(img_bgr: np.ndarray, caption: str, filename: str, key: str) -> None:
+    """st.image + a 'Download PNG' button underneath, so the user can save any
+    displayed image (raw, a baseline, a pipeline stage, ...) individually."""
+    st.image(bgr_to_rgb(img_bgr), caption=caption, use_container_width=True)
+    st.download_button(
+        "⬇️ Download PNG", data=encode_png(img_bgr), file_name=filename,
+        mime="image/png", key=key, use_container_width=True,
+    )
 
 
 def decode_upload(file) -> np.ndarray:
@@ -213,6 +366,8 @@ if st.session_state.get("downstream_key") != current_key:
 # ----------------------------------------------------------------------
 
 st.title("Hybrid Underwater Image Restoration — Live Demo")
+st.markdown(f'<div style="height:4px; width:72px; background:{CATEGORICAL[0]}; '
+            f'border-radius:2px; margin:-6px 0 16px;"></div>', unsafe_allow_html=True)
 
 if raw_bgr is None:
     st.info("Pick an image from the UIEB dataset or upload your own using the sidebar to begin.")
@@ -227,17 +382,20 @@ except Exception as e:
 diag = results["hybrid_diagnostics"]
 routing = diag.get("routing")
 
-status_bits = [
-    f"**{image_name}**",
-    f"{raw_bgr.shape[1]}×{raw_bgr.shape[0]}",
-    f"Routing: {'ON — ' + routing['water_type'] if routing else 'OFF'}",
-    f"Fusion Optimizer: {'ON' if use_fusion_opt else f'OFF (α={fixed_alpha:.2f})'}",
+routing_label = f"Routing: ON — {routing['water_type']}" if routing else "Routing: OFF"
+fusion_label = ("Fusion Optimizer: ON" if use_fusion_opt
+                else f"Fusion Optimizer: OFF (α={fixed_alpha:.2f})")
+pills = [
+    status_pill(image_name, kind="neutral"),
+    status_pill(f"{raw_bgr.shape[1]}×{raw_bgr.shape[0]}", kind="neutral"),
+    status_pill(routing_label, kind="novel" if routing else "baseline"),
+    status_pill(fusion_label, kind="novel" if use_fusion_opt else "baseline"),
 ]
-st.caption(" &nbsp;|&nbsp; ".join(status_bits))
+st.markdown(f'<div class="status-pill-row">{"".join(pills)}</div>', unsafe_allow_html=True)
 
-tab_compare, tab_stages, tab_metrics, tab_downstream, tab_about = st.tabs(
+tab_compare, tab_stages, tab_metrics, tab_downstream, tab_video, tab_about = st.tabs(
     ["\U0001F50D Comparison", "\U0001F9E9 Pipeline Stages", "\U0001F4CA Metrics",
-     "\U0001F3AF Downstream Validation", "ℹ️ About"]
+     "\U0001F3AF Downstream Validation", "\U0001F3AC Video", "ℹ️ About"]
 )
 
 # --- Comparison tab ---
@@ -245,40 +403,46 @@ with tab_compare:
     st.subheader("Raw vs. baselines vs. proposed hybrid")
     cols = st.columns(4)
     panels = [
-        ("Raw (input)", raw_bgr),
-        ("Conventional HE", results["conventional_he"]),
-        ("CLAHE-only", results["clahe_only"]),
-        ("Proposed Hybrid", results["proposed_hybrid"]),
+        ("Raw (input)", raw_bgr, "raw"),
+        ("Conventional HE", results["conventional_he"], "he"),
+        ("CLAHE-only", results["clahe_only"], "clahe"),
+        ("Proposed Hybrid", results["proposed_hybrid"], "hybrid"),
     ]
-    for col, (label, img) in zip(cols, panels):
+    stem = os.path.splitext(image_name or "image")[0]
+    for col, (label, img, slug) in zip(cols, panels):
         with col:
-            st.image(bgr_to_rgb(img), caption=label, use_container_width=True)
+            image_with_download(img, caption=label, filename=f"{stem}_{slug}.png",
+                                 key=f"dl_compare_{slug}")
             nr = evaluate_no_reference(img)
             st.caption(f"entropy {nr['entropy']:.2f} · UCIQE {nr['uciqe']:.1f} · UIQM {nr['uiqm']:.2f}")
 
 # --- Pipeline Stages tab ---
 with tab_stages:
     st.subheader("Sequential stages")
+    stage_stem = os.path.splitext(image_name or "image")[0]
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.image(bgr_to_rgb(diag["white_balanced"]), caption="1. White Balance", use_container_width=True)
+        image_with_download(diag["white_balanced"], "1. White Balance",
+                             f"{stage_stem}_white_balance.png", key="dl_stage_wb")
     with c2:
-        st.image(bgr_to_rgb(diag["gamma_corrected"]), caption=f"2. Gamma Correction (γ={diag['gamma_value']:.3f})",
-                  use_container_width=True)
+        image_with_download(diag["gamma_corrected"], f"2. Gamma Correction (γ={diag['gamma_value']:.3f})",
+                             f"{stage_stem}_gamma.png", key="dl_stage_gamma")
     with c3:
-        st.image(bgr_to_rgb(diag["restored"]), caption="Final: Fused & Restored", use_container_width=True)
+        image_with_download(diag["restored"], "Final: Fused & Restored",
+                             f"{stage_stem}_restored.png", key="dl_stage_restored")
 
     st.subheader("Parallel streams feeding fusion")
     c1, c2 = st.columns(2)
     with c1:
-        st.image(bgr_to_rgb(diag["clahe_stream"]),
-                  caption=f"3a. CLAHE stream (clip={diag['clahe_clip_limit']:.2f})", use_container_width=True)
+        image_with_download(diag["clahe_stream"], f"3a. CLAHE stream (clip={diag['clahe_clip_limit']:.2f})",
+                             f"{stage_stem}_clahe_stream.png", key="dl_stage_clahe")
     with c2:
-        st.image(bgr_to_rgb(diag["dehazed_stream"]),
-                  caption=f"3b. DCP dehazed stream (ω={diag['dcp_omega']:.2f})", use_container_width=True)
+        image_with_download(diag["dehazed_stream"], f"3b. DCP dehazed stream (ω={diag['dcp_omega']:.2f})",
+                             f"{stage_stem}_dehazed_stream.png", key="dl_stage_dehazed")
 
-    st.subheader("Module 7 — Fusion-Weight Search (golden-section)")
+    st.subheader("Module 7 — Fusion-Weight Search (coarse grid + golden-section refinement)")
     history = diag.get("fusion_search_history")
+    grid_history = diag.get("fusion_grid_history")
     if use_fusion_opt and history:
         alphas = [h[0] for h in history]
         scores = [h[1] for h in history]
@@ -288,8 +452,14 @@ with tab_stages:
         st.pyplot(fig)
         plt.close(fig)
 
+        n_evals = len(history) + (len(grid_history) if grid_history else 0)
+        bracket = diag.get("fusion_bracket")
+        bracket_note = f", refined within alpha∈[{bracket[0]:.2f}, {bracket[1]:.2f}]" if bracket else ""
         st.caption(f"Converged: alpha={diag['fusion_alpha']:.3f}, score={diag['fusion_score']:.3f}, "
-                    f"{len(history)} evaluations")
+                    f"{n_evals} evaluations total ({len(grid_history) if grid_history else 0} coarse-grid "
+                    f"+ {len(history)} golden-section){bracket_note}. Coarse-grid bracketing guards against "
+                    f"the non-convex/multi-peaked quality curves seen on ~7.5% of images "
+                    f"(see outputs/fusion_alpha_investigation/).")
 
         st.markdown("**Scrub through the search:**")
         idx = st.slider("Iteration", 1, len(history), len(history), key="fusion_scrub")
@@ -301,7 +471,8 @@ with tab_stages:
             st.metric("alpha at this step", f"{sel_alpha:.3f}")
             st.metric("quality score", f"{sel_score:.3f}")
         with pc2:
-            st.image(bgr_to_rgb(preview), caption=f"Fused output at iteration {idx}", use_container_width=True)
+            image_with_download(preview, f"Fused output at iteration {idx}",
+                                 f"{stage_stem}_fusion_iter{idx}.png", key="dl_fusion_preview")
     else:
         st.info("Fusion Optimizer is OFF — using a fixed alpha, so there's no search to display. "
                  "Toggle 'Fusion Optimizer (Module 7)' on in the sidebar to see it converge live.")
@@ -381,15 +552,109 @@ with tab_downstream:
         st.subheader("Keypoint visualization (top ~500 shown for clarity)")
         st.caption("The metrics above use the full high-cap detector; this overlay is a smaller, "
                     "readable sample purely for visualization.")
+        kc_stem = os.path.splitext(image_name or "image")[0]
         kc1, kc2 = st.columns(2)
         with kc1:
-            st.image(bgr_to_rgb(draw_keypoints_preview(raw_bgr)), caption="Raw — ORB keypoints",
-                      use_container_width=True)
+            image_with_download(draw_keypoints_preview(raw_bgr), "Raw — ORB keypoints",
+                                 f"{kc_stem}_raw_keypoints.png", key="dl_kp_raw")
         with kc2:
-            st.image(bgr_to_rgb(draw_keypoints_preview(results["proposed_hybrid"])),
-                      caption="Restored — ORB keypoints", use_container_width=True)
+            image_with_download(draw_keypoints_preview(results["proposed_hybrid"]), "Restored — ORB keypoints",
+                                 f"{kc_stem}_restored_keypoints.png", key="dl_kp_restored")
     else:
         st.info("Click the button above to run downstream validation for the current image/settings.")
+
+# --- Video tab ---
+with tab_video:
+    st.subheader("Restore a video file")
+    st.caption(
+        "Offline/batch processing, not a live stream: Streamlit's request/response model means "
+        "the whole clip is processed synchronously before you see any output. Benchmarked at "
+        "roughly 0.2-1.3s/frame at 640x360 depending on how often the fusion-optimizer re-runs "
+        "(see outputs/video_benchmark.log) — a 10s clip can take 1-5+ minutes. Use a short clip "
+        "(under ~15s) and/or a low resolution for anything interactive."
+    )
+
+    video_file = st.file_uploader("Raw underwater video", type=["mp4", "mov", "avi", "mkv", "webm"],
+                                    key="video_upload")
+
+    vc1, vc2, vc3 = st.columns(3)
+    with vc1:
+        video_period = st.number_input(
+            "Fusion-optimizer period (K frames)", min_value=1, max_value=60, value=10, step=1,
+            help="Run the full golden-section search every K frames; reuse the EMA-smoothed alpha "
+                 "on frames in between. K=1 = optimize every frame (slow, no approximation).")
+    with vc2:
+        video_beta = st.slider("Smoothing beta (EMA)", 0.0, 0.99, 0.88, step=0.01,
+                                 help="Higher = smoother/slower to adapt, lower = more responsive "
+                                      "but more flicker-prone. 0 = no smoothing.")
+    with vc3:
+        max_seconds = st.number_input("Max seconds to process (0 = whole clip)",
+                                        min_value=0, value=10, step=1)
+
+    if video_file is not None:
+        if st.button("▶ Process Video", type="primary"):
+            import os
+            import tempfile
+
+            from modules.video_pipeline import process_video
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                in_path = os.path.join(tmpdir, video_file.name)
+                with open(in_path, "wb") as f:
+                    f.write(video_file.getvalue())
+                out_path = os.path.join(tmpdir, "restored.mp4")
+
+                probe = cv2.VideoCapture(in_path)
+                src_fps = probe.get(cv2.CAP_PROP_FPS) or 25.0
+                total_frames_in_file = int(probe.get(cv2.CAP_PROP_FRAME_COUNT))
+                probe.release()
+                max_frames = (int(max_seconds * src_fps) if max_seconds > 0 else None)
+                frames_to_process = (min(max_frames, total_frames_in_file)
+                                      if max_frames else total_frames_in_file)
+
+                progress_bar = st.progress(0.0, text="Processing video...")
+                status = st.empty()
+
+                def _on_progress(n_done, total):
+                    frac = n_done / total if total else 0.0
+                    progress_bar.progress(min(frac, 1.0), text=f"Processing video... frame {n_done}/{total}")
+
+                try:
+                    stats = process_video(
+                        in_path, out_path,
+                        use_water_type_routing=use_routing,
+                        use_fusion_optimizer=use_fusion_opt,
+                        fixed_alpha=fixed_alpha,
+                        fusion_optimizer_period=int(video_period),
+                        beta=float(video_beta),
+                        max_frames=max_frames,
+                        time_stages=False,
+                        verbose=False,
+                        progress_callback=_on_progress,
+                    )
+                except Exception as e:
+                    st.error(f"Video processing failed: {e}")
+                    st.stop()
+                progress_bar.progress(1.0, text="Done.")
+                status.success(
+                    f"Processed {stats['n_frames']} frames in {stats['total_seconds']:.1f}s "
+                    f"({stats['effective_fps']:.2f} fps, source was {stats['fps_in']:.1f} fps) — "
+                    f"optimizer ran on {stats['n_optimizer_runs']}/{stats['n_frames']} frames."
+                )
+
+                with open(out_path, "rb") as f:
+                    restored_bytes = f.read()
+
+                vcol1, vcol2 = st.columns(2)
+                with vcol1:
+                    st.caption("Raw (input)")
+                    st.video(video_file.getvalue())
+                with vcol2:
+                    st.caption("Restored (output)")
+                    st.video(restored_bytes)
+    else:
+        st.info("Upload a short underwater video clip above to begin. "
+                 "(No file is processed until you click ▶ Process Video.)")
 
 # --- About tab ---
 with tab_about:
