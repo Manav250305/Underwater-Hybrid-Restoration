@@ -22,6 +22,7 @@ import numpy as np
 
 from modules.dataset_loader import iter_pairs
 from modules.fusion import compute_weight_map, multiscale_fusion
+from modules.fusion_optimizer import optimize_fusion_weight
 from modules.metrics import combined_quality_score
 from modules.water_type_classifier import classify_water_type
 from pipeline import restore_image
@@ -116,6 +117,79 @@ def classify_curve(alphas, scores, prominence_frac=0.03, smooth_window=5):
     return "monotonic_decreasing"
 
 
+GOLDEN_RATIO = (np.sqrt(5) - 1) / 2  # ≈ 0.618
+
+
+def _pre_fix_pure_golden_section(stream_a, stream_b, levels=5, tol=0.02, max_iters=20):
+    """
+    Reimplementation of the ORIGINAL (pre-fix) full-range golden-section
+    search from modules/fusion_optimizer.py, kept here only so this script
+    can validate the new bracketed-grid fallback against what the search
+    used to do — it is not used anywhere in the actual pipeline.
+    """
+    weight_a = compute_weight_map(stream_a)
+    weight_b = compute_weight_map(stream_b)
+
+    def ev(alpha):
+        fused = multiscale_fusion(stream_a, stream_b, weight_a, weight_b, levels=levels, alpha=alpha)
+        return combined_quality_score(fused)
+
+    lo, hi = 0.0, 1.0
+    x1 = hi - GOLDEN_RATIO * (hi - lo)
+    x2 = lo + GOLDEN_RATIO * (hi - lo)
+    f1, f2 = ev(x1), ev(x2)
+    iters = 0
+    while (hi - lo) > tol and iters < max_iters:
+        if f1 < f2:
+            lo = x1
+            x1, f1 = x2, f2
+            x2 = lo + GOLDEN_RATIO * (hi - lo)
+            f2 = ev(x2)
+        else:
+            hi = x2
+            x2, f2 = x1, f1
+            x1 = hi - GOLDEN_RATIO * (hi - lo)
+            f1 = ev(x1)
+        iters += 1
+    best_alpha = (lo + hi) / 2
+    return best_alpha, ev(best_alpha)
+
+
+def validate_fallback_on_flagged(results, samples):
+    """
+    For every sample classified 'non_convex', run both the pre-fix pure
+    golden-section search and the new bracketed-grid fallback
+    (modules.fusion_optimizer.optimize_fusion_weight) on the SAME
+    clahe/dehazed streams, and compare both against the fine-grid ground
+    truth already computed for that sample. Confirms the fallback matches
+    or beats the original search rather than just asserting it.
+    """
+    flagged = [r for r in results if r[2] == "non_convex"]
+    if not flagged:
+        print("\nNo non-convex samples to validate the fallback against.")
+        return
+
+    name_to_raw = {name: raw_img for name, _, raw_img in samples}
+
+    print("\n=== FALLBACK VALIDATION on flagged non-convex samples ===")
+    print(f"{'image':<20} {'true_grid_opt':>13} {'old_GS_score':>13} {'old_GS_alpha':>13} "
+          f"{'new_score':>10} {'new_alpha':>10} {'new>=old':>9}")
+    for name, water_type, shape, grid_best_alpha, scores in flagged:
+        raw_img = name_to_raw[name]
+        diag = restore_image(raw_img, use_fusion_optimizer=False)
+        stream_a, stream_b = diag["clahe_stream"], diag["dehazed_stream"]
+
+        true_best_score = float(scores.max())
+
+        old_alpha, old_score = _pre_fix_pure_golden_section(stream_a, stream_b)
+
+        new_result = optimize_fusion_weight(stream_a, stream_b)
+        new_alpha, new_score = new_result["best_alpha"], new_result["best_score"]
+
+        print(f"{name:<20} {true_best_score:>13.3f} {old_score:>13.3f} {old_alpha:>13.3f} "
+              f"{new_score:>10.3f} {new_alpha:>10.3f} {str(new_score >= old_score - 1e-6):>9}")
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     samples = pick_samples()
@@ -178,6 +252,8 @@ def main():
     fig.savefig(overview_path, dpi=120)
     plt.close(fig)
     print(f"\nOverview plot -> {overview_path}")
+
+    validate_fallback_on_flagged(results, samples)
 
 
 if __name__ == "__main__":
