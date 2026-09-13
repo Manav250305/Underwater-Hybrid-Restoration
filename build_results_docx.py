@@ -254,9 +254,9 @@ def build_downstream_section(doc, downstream_stats):
     add_heading(doc, "5. Downstream Task Validation", level=2)
     doc.add_paragraph(
         "ORB keypoint yield and Canny edge density, computed with the corrected detector "
-        "(nfeatures raised from 1000 to 200,000 — see Task 1 fix note) so the reported gains "
-        "are real, not an artifact of both raw and restored counts hitting a shared detection "
-        "ceiling."
+        "(nfeatures raised from 1000 to 200,000 — see Section 6, Known Issues Fixed, item 2) "
+        "so the reported gains are real, not an artifact of both raw and restored counts "
+        "hitting a shared detection ceiling."
     )
     table = doc.add_table(rows=1, cols=2)
     hdr = table.rows[0].cells
@@ -269,13 +269,23 @@ def build_downstream_section(doc, downstream_stats):
     style_table(table)
 
 
-def build_limitations(doc, non_convex_note):
-    add_heading(doc, "6. Limitations", level=2)
-    p = doc.add_paragraph()
-    p.add_run(
-        "Fusion-optimizer search validity (Module 7). "
-    ).bold = True
-    p.add_run(non_convex_note)
+def build_limitations(doc, items):
+    """
+    items: list of (title, body_text, status) tuples, status in
+    {"Found & Fixed", "Found & Mitigated", "Found, Not Fixed"} — printed
+    after the title so the reader can tell lessons-learned (already
+    resolved) apart from open/documented issues at a glance.
+    """
+    add_heading(doc, "6. Known Issues & Limitations", level=2)
+    doc.add_paragraph(
+        "Issues surfaced while building out batch evaluation and the ablation study — "
+        "recorded here (rather than silently patched) since each would otherwise quietly "
+        "distort the tables above."
+    )
+    for title, body, status in items:
+        p = doc.add_paragraph()
+        p.add_run(f"{title} ({status}). ").bold = True
+        p.add_run(body)
 
 
 def main():
@@ -308,19 +318,71 @@ def main():
         ("Cross-matches (raw vs. restored), mean", f"{cm.mean():.1f}"),
     ]
 
-    non_convex_note = (
-        "A fine grid scan (step=0.02) of combined_quality_score(alpha) over 8 sample images "
-        "spanning all 4 water types found 6/8 curves monotonic (boundary optimum, as expected "
-        "when one stream dominates) and 1/8 cleanly unimodal with an interior peak — both cases "
-        "golden-section search handles correctly. 1/8 (a deep_lowlight sample) showed a genuine "
-        "non-convex curve with two local maxima; on that image the golden-section search converged "
-        "to alpha=0.70 (score=54.14) while the true grid-search optimum was alpha=1.00 (score=54.43), "
-        "a measurable ~0.5% relative shortfall. This confirms the bimodal alpha distribution seen "
-        "across the dataset (Section 4, Observation) is mostly a legitimate finding — for most images "
-        "one stream genuinely dominates the quality score — but the search is not immune to local-optimum "
-        "traps on a minority of images with non-convex objectives. See outputs/fusion_alpha_investigation/ "
-        "for the per-image plots."
-    )
+    limitation_items = [
+        (
+            "UCIQE blow-up on near-black pixels",
+            "modules/metrics.py's compute_uciqe computed average saturation as chroma / (L + 1e-6); "
+            "a handful of pixels with L≈0 (borders/shadows/vignetting, common in UIEB raw images) sent "
+            "individual pixels' saturation into the millions, dominating the whole-image mean — 59% of "
+            "hybrid_uciqe values were >1000 before the fix. Fixed by excluding pixels with L<1.0 from the "
+            "saturation mean rather than merely epsilon-guarding the division; all UCIQE values reported "
+            "in this document are post-fix and sit in the expected 0-100 range.",
+            "Found & Fixed",
+        ),
+        (
+            "ORB keypoint cap artificially tying raw vs. restored counts",
+            "cv2.ORB_create(nfeatures=1000) was low enough that both raw and restored images routinely "
+            "hit the same ceiling, reporting keypoint_gain_pct == 0% for a large fraction of the dataset "
+            "even though restoration was clearly revealing more real detail. Raised to nfeatures=200000 "
+            "(restored images were found reaching up to ~144k keypoints). _pct_change returning inf when "
+            "a raw image had zero detected keypoints was also fixed — it now returns None, excluded from "
+            "aggregates, rather than distorting the mean.",
+            "Found & Fixed",
+        ),
+        (
+            "Fusion-optimizer (Module 7) search validity",
+            "A fine grid scan (step=0.02) of combined_quality_score(alpha) over 8 sample images spanning "
+            "all 4 water types found 6/8 curves monotonic and 1/8 cleanly unimodal — both handled correctly "
+            "by golden-section search — but 1/8 (a deep_lowlight sample, 651_img_.png) showed a genuine "
+            "non-convex curve with two local maxima: golden-section converged to alpha=0.70 (score=54.14) "
+            "vs. the true grid optimum alpha=1.00 (score=54.43). A wider 40-image sample (10 per water "
+            "type) confirmed this at 3/40 (7.5%) non-convex — a meaningful fraction, not sampling noise. "
+            "Mitigated with a bracketing grid-search fallback (modules/fusion_optimizer.py): a coarse "
+            "11-point grid over [0,1] first, then golden-section refinement restricted to a bracket around "
+            "the best grid point. Re-validated on all 4 flagged non-convex images found across both "
+            "samples: the fallback matches the true grid optimum exactly on 2/4 (incl. 651_img_.png, now "
+            "54.430 = the true optimum), clearly beats the old search on a 3rd (37.625 vs. 37.323), and "
+            "ties within noise on the 4th (45.508 vs. old 45.522, a 0.03% difference from the old search "
+            "landing on an off-grid point marginally above the discretized truth). See "
+            "outputs/fusion_alpha_investigation/ for the per-image plots and investigate_fusion_alpha.py's "
+            "printed validation table.",
+            "Found & Mitigated",
+        ),
+        (
+            "Water-type classifier (Module 5) green_dominance threshold scale bug",
+            "modules/water_type_classifier.py gated the green_turbid rule on "
+            "f['green_dominance'] > 8/255.0 (≈0.031), but green_dominance is a difference of raw "
+            "0-255-scale channel means (from white_balance.estimate_color_cast_severity, not normalized "
+            "to 0-1), with real values ranging from -130 to +146 across the dataset. The /255.0 division "
+            "made the gate effectively \"greener than zero\" rather than the \"strong green cast\" the "
+            "code comment describes. Evidence: 146 images labeled clear_blue had green_dominance > 8 (a "
+            "real green tint on the raw scale) but never reached green_turbid only because haze_density "
+            "stayed ≤ 0.35 for all of them. Fixed by changing the comparison to f['green_dominance'] > 8 "
+            "(dropping the /255.0); mean_luminance (0.30), haze_density (0.35/0.45) and mean_saturation "
+            "(0.35) were checked against the same per-image feature data and show sensibly ordered "
+            "separation across water types with no comparable evidence of a bug, so were left unchanged. "
+            "Re-classifying all 890 raw images confirmed the fix exactly as predicted in the prior pass: "
+            "65/170 (38%) of green_turbid images reclassify (49 to clear_blue, 16 to hazy_bright), "
+            "green_turbid's mean green_dominance rises from 17.7 to 26.5, and hazy_bright grows from 34 "
+            "to 50 images. Because this changes per-image routing, batch_metrics.csv and every "
+            "routing-ON ablation config (ablation_fixed_alpha.csv) were re-run in full (890/890, 0 "
+            "failures, ~53 min and ~27 min respectively); the two routing-OFF configs "
+            "(ablation_no_routing.csv, ablation_neither.csv) are provably invariant to this fix — the "
+            "classifier is never called on that code path — so were kept rather than re-run. All tables "
+            "in this document are computed post-fix.",
+            "Found & Fixed",
+        ),
+    ]
 
     doc = Document()
     title = doc.add_heading(level=0)
@@ -348,7 +410,7 @@ def main():
     doc.add_page_break()
     build_downstream_section(doc, downstream_stats)
     doc.add_page_break()
-    build_limitations(doc, non_convex_note)
+    build_limitations(doc, limitation_items)
 
     doc.save(args.output)
     print(f"Saved -> {args.output}")

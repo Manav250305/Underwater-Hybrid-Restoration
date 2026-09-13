@@ -109,7 +109,7 @@ def classify_water_type(img_bgr: np.ndarray) -> tuple:
         water_type = "deep_lowlight"
 
     # Rule 2: strong green cast + moderate-to-high haze -> green turbid water
-    elif f["green_dominance"] > 8 / 255.0 and f["haze_density"] > 0.35:
+    elif f["green_dominance"] > 8 and f["haze_density"] > 0.35:
         water_type = "green_turbid"
 
     # Rule 3: well-lit but haze-dominant (dense dark channel, low saturation)
