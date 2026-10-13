@@ -1,0 +1,60 @@
+# Ocean theme with light + dark variants (users can switch in the app menu).
+# chartCategoricalColors order matches METHOD_ORDER in streamlit_app.py
+# (Raw, Conventional HE, CLAHE-only, UDCP, Proposed hybrid), so each method
+# keeps the same color in every chart.
+
+[theme]
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+baseFontSize = 15
+headingFontWeights = [700, 650, 600, 600, 600, 600]
+headingFontSizes = ["30px", "22px", "18px", "16px", "14px", "13px"]
+baseRadius = "12px"
+buttonRadius = "10px"
+showWidgetBorder = true
+showSidebarBorder = true
+linkUnderline = false
+chartCategoricalColors = ["#64748b", "#f97316", "#10b981", "#8b5cf6", "#0e7490"]
+
+[theme.light]
+primaryColor = "#0e7490"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#eef4f7"
+textColor = "#0f172a"
+borderColor = "#dbe4ea"
+linkColor = "#0e7490"
+codeBackgroundColor = "#eef4f7"
+blueColor = "#0e7490"
+greenColor = "#059669"
+orangeColor = "#ea580c"
+violetColor = "#7c3aed"
+grayColor = "#64748b"
+dataframeHeaderBackgroundColor = "#eef4f7"
+dataframeBorderColor = "#dbe4ea"
+
+[theme.light.sidebar]
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f5f9"
+borderColor = "#e2e8f0"
+
+[theme.dark]
+primaryColor = "#0e7490"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#132033"
+textColor = "#e2e8f0"
+borderColor = "#1f2f45"
+linkColor = "#67e8f9"
+codeBackgroundColor = "#132033"
+blueColor = "#22d3ee"
+greenColor = "#34d399"
+orangeColor = "#fb923c"
+violetColor = "#a78bfa"
+grayColor = "#94a3b8"
+dataframeHeaderBackgroundColor = "#132033"
+dataframeBorderColor = "#1f2f45"
+
+[theme.dark.sidebar]
+backgroundColor = "#0f192b"
+secondaryBackgroundColor = "#16253a"
+borderColor = "#1f2f45"
