@@ -1,0 +1,207 @@
+{
+  "objective": "J = PSNR/sd(PSNR) + SSIM/sd(SSIM), sd from neutral-profile calibration scores",
+  "sd_psnr": 3.1965193013879913,
+  "sd_ssim": 0.1396779977369276,
+  "n_calibration_images": 268,
+  "n_candidate_settings": 182,
+  "global_profile": {
+    "wb_gain_cap": 2.0,
+    "gamma_strength": 1.4,
+    "clahe_clip_scale": 1.0,
+    "dcp_omega": 0.7
+  },
+  "global_vs_neutral_all_calibration": {
+    "neutral": {
+      "psnr": 15.192291782788706,
+      "ssim": 0.7731585114222942,
+      "J": 10.288052904229405
+    },
+    "global_tuned": {
+      "psnr": 16.735033286167496,
+      "ssim": 0.8151120207203301,
+      "J": 11.071043344907169
+    }
+  },
+  "types": {
+    "clear_blue": {
+      "n_calibration": 192,
+      "hand_set_profile": {
+        "wb_gain_cap": 2.5,
+        "gamma_strength": 0.8,
+        "clahe_clip_scale": 0.9,
+        "dcp_omega": 0.8
+      },
+      "best_per_type_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 0.8,
+        "dcp_omega": 0.7
+      },
+      "p_better_than_global": 0.006085698685142111,
+      "selected_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 0.8,
+        "dcp_omega": 0.7
+      },
+      "selected": "per-type",
+      "calibration_scores": {
+        "hand_set": {
+          "psnr": 14.471259632881909,
+          "ssim": 0.7549335406598058,
+          "J": 9.932006537877607
+        },
+        "neutral": {
+          "psnr": 15.318141144091976,
+          "ssim": 0.7925293273231259,
+          "J": 10.466105595349516
+        },
+        "global_tuned": {
+          "psnr": 16.865356488317698,
+          "ssim": 0.8265554580769964,
+          "J": 11.193740964545214
+        },
+        "per_type_best": {
+          "psnr": 16.853773311665392,
+          "ssim": 0.8324336148344894,
+          "J": 11.232200907298113
+        }
+      }
+    },
+    "green_turbid": {
+      "n_calibration": 32,
+      "hand_set_profile": {
+        "wb_gain_cap": 4.0,
+        "gamma_strength": 1.1,
+        "clahe_clip_scale": 1.1,
+        "dcp_omega": 0.9
+      },
+      "best_per_type_profile": {
+        "wb_gain_cap": 3.0,
+        "gamma_strength": 1.2,
+        "clahe_clip_scale": 1.0,
+        "dcp_omega": 0.7
+      },
+      "p_better_than_global": 0.18971327762119472,
+      "selected_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 1.0,
+        "dcp_omega": 0.7
+      },
+      "selected": "fallback-to-global",
+      "calibration_scores": {
+        "hand_set": {
+          "psnr": 16.888978838968505,
+          "ssim": 0.8432972060604634,
+          "J": 11.32099058055621
+        },
+        "neutral": {
+          "psnr": 17.03826040699002,
+          "ssim": 0.8489891023955217,
+          "J": 11.408441996756313
+        },
+        "global_tuned": {
+          "psnr": 18.188497351980146,
+          "ssim": 0.8565229924849089,
+          "J": 11.822220005008035
+        },
+        "per_type_best": {
+          "psnr": 18.241508687999744,
+          "ssim": 0.8614019621310635,
+          "J": 11.8737342093576
+        }
+      }
+    },
+    "deep_lowlight": {
+      "n_calibration": 29,
+      "hand_set_profile": {
+        "wb_gain_cap": 3.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 1.3,
+        "dcp_omega": 0.7
+      },
+      "best_per_type_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 1.3,
+        "dcp_omega": 0.7
+      },
+      "p_better_than_global": 0.0060546305030584335,
+      "selected_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 1.3,
+        "dcp_omega": 0.7
+      },
+      "selected": "per-type",
+      "calibration_scores": {
+        "hand_set": {
+          "psnr": 14.087722614062828,
+          "ssim": 0.6866145382978416,
+          "J": 9.322902855730186
+        },
+        "neutral": {
+          "psnr": 11.61632601144951,
+          "ssim": 0.5203226006916027,
+          "J": 7.359212634836199
+        },
+        "global_tuned": {
+          "psnr": 13.777682519878548,
+          "ssim": 0.6788750028945962,
+          "J": 9.170499985938283
+        },
+        "per_type_best": {
+          "psnr": 14.147120250515501,
+          "ssim": 0.6876125925951535,
+          "J": 9.348630222862134
+        }
+      }
+    },
+    "hazy_bright": {
+      "n_calibration": 15,
+      "hand_set_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 0.7,
+        "clahe_clip_scale": 0.8,
+        "dcp_omega": 0.92
+      },
+      "best_per_type_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.2,
+        "clahe_clip_scale": 1.3,
+        "dcp_omega": 0.7
+      },
+      "p_better_than_global": 0.262237548828125,
+      "selected_profile": {
+        "wb_gain_cap": 2.0,
+        "gamma_strength": 1.4,
+        "clahe_clip_scale": 1.0,
+        "dcp_omega": 0.7
+      },
+      "selected": "fallback-to-global",
+      "calibration_scores": {
+        "hand_set": {
+          "psnr": 14.734894333917243,
+          "ssim": 0.8209057410900169,
+          "J": 10.486798430408037
+        },
+        "neutral": {
+          "psnr": 16.556887384399783,
+          "ssim": 0.8522562345614353,
+          "J": 11.281239581328085
+        },
+        "global_tuned": {
+          "psnr": 17.68371777306989,
+          "ssim": 0.8436841839203169,
+          "J": 11.572387432664867
+        },
+        "per_type_best": {
+          "psnr": 17.706984221051112,
+          "ssim": 0.8557049134817567,
+          "J": 11.6657264088927
+        }
+      }
+    }
+  }
+}

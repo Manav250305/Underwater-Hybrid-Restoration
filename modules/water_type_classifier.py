@@ -33,35 +33,46 @@ from .dehazing import get_dark_channel
 
 WATER_TYPES = ["clear_blue", "green_turbid", "deep_lowlight", "hazy_bright"]
 
-# Per-type parameter profiles. These seed the adaptive formulas in
-# Modules 1-4 (acting as adjustment multipliers / overrides) rather than
-# replacing the adaptivity entirely — the water type sets *how strongly*
-# each adaptive rule should act.
+# Original hand-set per-type profiles (Review I). Kept for reference and as
+# candidates in calibrate_routing.py; they made routing *hurt* clear_blue
+# (72% of UIEB) on PSNR/SSIM, so they are no longer used directly.
+HAND_SET_PROFILES = {
+    "clear_blue": {"wb_gain_cap": 2.5, "gamma_strength": 0.8, "clahe_clip_scale": 0.9, "dcp_omega": 0.80, "red_comp_strength": 0.0},
+    "green_turbid": {"wb_gain_cap": 4.0, "gamma_strength": 1.1, "clahe_clip_scale": 1.1, "dcp_omega": 0.90, "red_comp_strength": 0.0},
+    "deep_lowlight": {"wb_gain_cap": 3.0, "gamma_strength": 1.4, "clahe_clip_scale": 1.3, "dcp_omega": 0.70, "red_comp_strength": 0.0},
+    "hazy_bright": {"wb_gain_cap": 2.0, "gamma_strength": 0.7, "clahe_clip_scale": 0.8, "dcp_omega": 0.92, "red_comp_strength": 0.0},
+}
+
+# Multipliers of 1.0 / omega 0.85 / gain cap 4.0 reproduce each stage's own
+# un-routed adaptive formula exactly (the pre-calibration routing-OFF arm).
+NEUTRAL_PROFILE = {"wb_gain_cap": 4.0, "gamma_strength": 1.0, "clahe_clip_scale": 1.0, "dcp_omega": 0.85, "red_comp_strength": 0.0}
+
+# Single profile applied to every image when routing is OFF (the Module 5
+# ablation arm), tuned by calibrate_routing.py on the calibration split with
+# the same grid/objective as the per-type profiles — so the ablation compares
+# per-type vs. one equally-tuned parameter set, not tuned vs. untuned.
+# Source: outputs/routing_calibration_selected.json ("global_profile"),
+# red_comp_strength from outputs/red_comp_calibration_selected.json.
+GLOBAL_PROFILE = {"wb_gain_cap": 2.0, "gamma_strength": 1.4, "clahe_clip_scale": 1.0, "dcp_omega": 0.70,
+                  "red_comp_strength": 0.75}
+
+# Per-type profiles selected by calibrate_routing.py. These seed the adaptive
+# formulas in Modules 1-4 (acting as adjustment multipliers / overrides)
+# rather than replacing the adaptivity entirely. A type keeps its own profile
+# only if it beat GLOBAL_PROFILE on that type's calibration images (paired
+# one-sided Wilcoxon, p < 0.05); green_turbid and hazy_bright did not, so they
+# fall back to GLOBAL_PROFILE.
+# Source: outputs/routing_calibration_selected.json ("types.*.selected_profile"),
+# plus red_comp_strength from outputs/red_comp_calibration_selected.json
+# (second, coordinate-wise stage; only deep_lowlight beat the global 0.75).
 TYPE_PROFILES = {
-    "clear_blue": {
-        "wb_gain_cap": 2.5,       # mild colour correction needed
-        "gamma_strength": 0.8,    # gentle gamma adjustment
-        "clahe_clip_scale": 0.9,  # conservative CLAHE (already decent contrast)
-        "dcp_omega": 0.80,        # light dehazing
-    },
-    "green_turbid": {
-        "wb_gain_cap": 4.0,       # strong red-channel boost needed
-        "gamma_strength": 1.1,
-        "clahe_clip_scale": 1.1,
-        "dcp_omega": 0.90,        # aggressive dehazing (heavy backscatter)
-    },
-    "deep_lowlight": {
-        "wb_gain_cap": 3.0,
-        "gamma_strength": 1.4,    # strong brightening required
-        "clahe_clip_scale": 1.3,  # boost local contrast more (low-key image)
-        "dcp_omega": 0.70,        # gentler dehazing (avoid crushing shadows to black)
-    },
-    "hazy_bright": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 0.7,
-        "clahe_clip_scale": 0.8,
-        "dcp_omega": 0.92,        # strongest dehazing (haze is the dominant issue)
-    },
+    "clear_blue": {"wb_gain_cap": 2.0, "gamma_strength": 1.4, "clahe_clip_scale": 0.8, "dcp_omega": 0.70,
+                   "red_comp_strength": 0.75},
+    "green_turbid": dict(GLOBAL_PROFILE),
+    # deep water loses the most red light -> by far the strongest compensation
+    "deep_lowlight": {"wb_gain_cap": 2.0, "gamma_strength": 1.4, "clahe_clip_scale": 1.3, "dcp_omega": 0.70,
+                      "red_comp_strength": 4.0},
+    "hazy_bright": dict(GLOBAL_PROFILE),
 }
 
 
@@ -133,4 +144,12 @@ def get_routed_parameters(img_bgr: np.ndarray) -> dict:
     profile = dict(TYPE_PROFILES[water_type])  # copy
     profile["water_type"] = water_type
     profile["features"] = features
+    return profile
+
+
+def get_global_parameters() -> dict:
+    """Routing-OFF counterpart of get_routed_parameters: GLOBAL_PROFILE for every image."""
+    profile = dict(GLOBAL_PROFILE)
+    profile["water_type"] = None
+    profile["features"] = None
     return profile

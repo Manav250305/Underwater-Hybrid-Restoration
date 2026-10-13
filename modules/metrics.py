@@ -31,9 +31,23 @@ def compute_uciqe(img_bgr: np.ndarray, c1: float = 0.4680, c2: float = 0.2745, c
     """
     UCIQE (Yang & Sowmya, 2015): weighted combination of chroma std,
     luminance contrast, and average saturation in CIELAB space.
+
+    Computed in true CIELAB, with every term on a ~[0, 1] scale so the
+    published weights c1-c3 combine comparable quantities:
+      - L* scaled to [0, 1] (L*/100), a*/b* scaled by the same 1/100
+      - chroma C = sqrt(a^2 + b^2), centred on the neutral axis (a = b = 0)
+      - saturation s = C / sqrt(C^2 + L^2), bounded in [0, 1]
+
+    OpenCV's 8-bit Lab encoding (L*255/100, a+128, b+128) must NOT be used
+    directly: the +128 offset makes every neutral grey pixel look like
+    chroma ~181, and the unscaled 0-255 L range lets the contrast term
+    swamp the other two. The bounded saturation form also removes the
+    near-black C/L blow-up without needing to drop dark pixels.
     """
-    lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float64)
-    L, a, b = lab[:, :, 0], lab[:, :, 1], lab[:, :, 2]
+    lab = cv2.cvtColor(img_bgr.astype(np.float32) / 255.0, cv2.COLOR_BGR2LAB).astype(np.float64)
+    L = lab[:, :, 0] / 100.0
+    a = lab[:, :, 1] / 100.0
+    b = lab[:, :, 2] / 100.0
 
     chroma = np.sqrt(a ** 2 + b ** 2)
     sigma_c = chroma.std()
@@ -41,20 +55,15 @@ def compute_uciqe(img_bgr: np.ndarray, c1: float = 0.4680, c2: float = 0.2745, c
     # Luminance contrast: top/bottom 1% clipped range of L
     l_sorted = np.sort(L.flatten())
     n = len(l_sorted)
-    top1 = l_sorted[int(0.99 * n)]
-    bot1 = l_sorted[int(0.01 * n)]
+    top1 = l_sorted[int(0.99 * (n - 1))]
+    bot1 = l_sorted[int(0.01 * (n - 1))]
     con_l = top1 - bot1
 
-    # Average saturation: chroma / L, restricted to pixels with meaningful
-    # luminance. Near-black pixels (L ~ 0, e.g. borders/shadows/vignetting)
-    # make chroma/L explode even with a small denominator epsilon — a
-    # handful of such pixels can otherwise dominate the mean by orders of
-    # magnitude, so they're excluded rather than merely epsilon-guarded.
-    valid = L >= 1.0
-    if np.any(valid):
-        mu_s = (chroma[valid] / L[valid]).mean()
-    else:
-        mu_s = 0.0
+    # Average saturation, bounded form (0 for neutral/black pixels, -> 1 for
+    # pure chroma), so near-black pixels can't dominate the mean.
+    denom = np.sqrt(chroma ** 2 + L ** 2)
+    sat = np.divide(chroma, denom, out=np.zeros_like(chroma), where=denom > 1e-6)
+    mu_s = sat.mean()
 
     uciqe = c1 * sigma_c + c2 * con_l + c3 * mu_s
     return float(uciqe)
@@ -82,44 +91,39 @@ def _uicm(img_bgr: np.ndarray) -> float:
     return float(uicm)
 
 
+def _blocks(x: np.ndarray, block: int = 8) -> np.ndarray:
+    """Non-overlapping block x block tiles of a 2-D array as (h_blocks, w_blocks, block*block); ragged edges dropped."""
+    h, w = x.shape
+    hb, wb = h // block, w // block
+    return x[:hb * block, :wb * block].reshape(hb, block, wb, block).swapaxes(1, 2).reshape(hb, wb, block * block)
+
+
 def _uism(img_bgr: np.ndarray) -> float:
     """Underwater Image Sharpness Measure component of UIQM (Sobel-edge based)."""
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
     sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
     sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
     edge_magnitude = np.sqrt(sobel_x ** 2 + sobel_y ** 2)
-    # EME-style block-based measure
-    block = 8
-    h, w = gray.shape
-    h_blocks, w_blocks = h // block, w // block
-    eme = 0.0
-    count = 0
-    for i in range(h_blocks):
-        for j in range(w_blocks):
-            patch = edge_magnitude[i * block:(i + 1) * block, j * block:(j + 1) * block]
-            max_val, min_val = patch.max(), patch.min()
-            if max_val > 0 and min_val > 0:
-                eme += np.log(max_val / (min_val + 1e-6) + 1e-6)
-                count += 1
-    return float(eme / count) if count > 0 else 0.0
+    # EME-style block-based measure over 8x8 blocks
+    tiles = _blocks(edge_magnitude)
+    max_val, min_val = tiles.max(axis=2), tiles.min(axis=2)
+    valid = (max_val > 0) & (min_val > 0)
+    if not valid.any():
+        return 0.0
+    eme = np.log(max_val[valid] / (min_val[valid] + 1e-6) + 1e-6)
+    return float(eme.sum() / valid.sum())
 
 
 def _uiconm(img_bgr: np.ndarray) -> float:
     """Underwater Image Contrast Measure component of UIQM (block-based Michelson contrast)."""
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
-    block = 8
-    h, w = gray.shape
-    h_blocks, w_blocks = h // block, w // block
-    contrast_sum = 0.0
-    count = 0
-    for i in range(h_blocks):
-        for j in range(w_blocks):
-            patch = gray[i * block:(i + 1) * block, j * block:(j + 1) * block]
-            max_val, min_val = patch.max(), patch.min()
-            if max_val + min_val > 0:
-                contrast_sum += (max_val - min_val) / (max_val + min_val + 1e-6)
-                count += 1
-    return float(contrast_sum / count) if count > 0 else 0.0
+    tiles = _blocks(gray)
+    max_val, min_val = tiles.max(axis=2), tiles.min(axis=2)
+    valid = (max_val + min_val) > 0
+    if not valid.any():
+        return 0.0
+    contrast = (max_val[valid] - min_val[valid]) / (max_val[valid] + min_val[valid] + 1e-6)
+    return float(contrast.sum() / valid.sum())
 
 
 def compute_uiqm(img_bgr: np.ndarray, c1: float = 0.0282, c2: float = 0.2953, c3: float = 3.5753) -> float:
@@ -156,10 +160,16 @@ def combined_quality_score(img_bgr: np.ndarray, w_uciqe: float = 0.5, w_uiqm: fl
     Weighted UCIQE + UIQM score, normalized roughly to a comparable scale.
     Used as the objective function for the fusion-weight optimizer
     (Module 7) since it needs a single scalar to maximize.
+
+    Because Module 7 maximizes this, UCIQE and UIQM are *optimized-for*
+    metrics for any configuration that uses the optimizer — gains on them
+    are partly by construction and should not be read as independent
+    evidence (PSNR/SSIM/entropy/downstream metrics are the held-out ones).
     """
     uciqe = compute_uciqe(img_bgr)
     uiqm = compute_uiqm(img_bgr)
     # Rough normalization: UCIQE typically in [0, ~0.7], UIQM in [0, ~5]
+    # (both terms land around 0.1-0.4 on UIEB raw images, i.e. balanced)
     uciqe_norm = uciqe / 0.7
     uiqm_norm = uiqm / 5.0
     return float(w_uciqe * uciqe_norm + w_uiqm * uiqm_norm)
