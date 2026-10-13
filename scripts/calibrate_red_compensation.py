@@ -21,8 +21,13 @@ Writes:
   outputs/red_comp_calibration_selected.json
 
 Usage:
-    python calibrate_red_compensation.py --workers 8
+    python scripts/calibrate_red_compensation.py --workers 8
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import argparse
 import json
@@ -34,11 +39,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
-from calibrate_routing import _ssim_fast
 from modules.dataset_loader import list_pairs
-from modules.metrics import compute_psnr
+from modules.metrics import compute_psnr, compute_ssim_fast
 from modules.water_type_classifier import WATER_TYPES
-from pipeline import restore_image
+from modules.pipeline import restore_image
 
 STRENGTHS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
 FIXED_ALPHA = 0.5
@@ -55,7 +59,7 @@ def _grid_one(job):
                               fixed_alpha=FIXED_ALPHA, profile_overrides={"red_comp_strength": s})
             out = d["restored"]
             rows.append({"filename": name, "arm": arm, "strength": s,
-                         "psnr": compute_psnr(out, ref), "ssim": _ssim_fast(out, ref)})
+                         "psnr": compute_psnr(out, ref), "ssim": compute_ssim_fast(out, ref)})
     return rows
 
 

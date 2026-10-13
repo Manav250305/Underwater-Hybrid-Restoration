@@ -26,8 +26,13 @@ Writes:
                                                argmax-NR-metric selection yields
 
 Usage:
-    python calibrate_fusion_alpha.py --workers 8
+    python scripts/calibrate_fusion_alpha.py --workers 8
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import argparse
 import json
@@ -39,12 +44,12 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from calibrate_routing import _ssim_fast
 from modules.dataset_loader import list_pairs
 from modules.fusion import compute_weight_map, multiscale_fusion
 from modules.fusion_alpha_predictor import MODEL_PATH, alpha_features
-from modules.metrics import combined_quality_score, compute_entropy, compute_psnr, compute_uciqe, compute_uiqm
-from pipeline import restore_image
+from modules.metrics import (combined_quality_score, compute_entropy, compute_psnr, compute_ssim_fast,
+                            compute_uciqe, compute_uiqm)
+from modules.pipeline import restore_image
 
 ALPHAS = np.round(np.linspace(0.0, 1.0, 11), 2)
 LAMBDAS = [0.1, 1.0, 3.0, 10.0, 30.0, 100.0]
@@ -66,7 +71,7 @@ def _sweep_one(job):
             fused = multiscale_fusion(a_img, b_img, wa, wb, alpha=float(al))
             rows.append({
                 "filename": name, "arm": arm, "alpha": float(al),
-                "psnr": compute_psnr(fused, ref), "ssim": _ssim_fast(fused, ref),
+                "psnr": compute_psnr(fused, ref), "ssim": compute_ssim_fast(fused, ref),
                 "uciqe": compute_uciqe(fused), "uiqm": compute_uiqm(fused),
                 "entropy": compute_entropy(fused), "nr_combined": combined_quality_score(fused),
                 **feats,

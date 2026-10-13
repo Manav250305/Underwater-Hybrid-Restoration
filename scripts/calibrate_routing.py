@@ -26,8 +26,13 @@ Writes:
   outputs/routing_calibration_selected.json selected profiles + evidence
 
 Usage:
-    python calibrate_routing.py --workers 8
+    python scripts/calibrate_routing.py --workers 8
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import argparse
 import itertools
@@ -45,7 +50,7 @@ from modules.dataset_loader import list_pairs
 from modules.dehazing import dcp_dehaze
 from modules.fusion import compute_weight_map, multiscale_fusion
 from modules.gamma_correction import adaptive_gamma_correction, compute_adaptive_gamma
-from modules.metrics import compute_psnr
+from modules.metrics import compute_psnr, compute_ssim_fast
 from modules.water_type_classifier import HAND_SET_PROFILES, NEUTRAL_PROFILE, WATER_TYPES, classify_water_type
 from modules.white_balance import adaptive_white_balance
 
@@ -59,29 +64,6 @@ GRID = {
 CAL_FRACTION = 0.30
 SEED = 42
 FIXED_ALPHA = 0.5
-
-
-def _ssim_fast(x, y):
-    """
-    Same quantity as skimage structural_similarity(..., channel_axis=2,
-    data_range=255) — 7x7 uniform window, K1=0.01, K2=0.03, sample
-    covariance, 3px border cropped, mean over channels — in float32 OpenCV,
-    ~4x faster. Agrees with modules.metrics.compute_ssim to ~1e-7 on UIEB.
-    Used only for the calibration grid; reported SSIM still uses skimage.
-    """
-    c1, c2 = (0.01 * 255) ** 2, (0.03 * 255) ** 2
-    x, y = x.astype(np.float32), y.astype(np.float32)
-    cov_norm = 49.0 / 48.0
-
-    def box(z):
-        return cv2.blur(z, (7, 7), borderType=cv2.BORDER_REFLECT)
-
-    ux, uy = box(x), box(y)
-    vxx = cov_norm * (box(x * x) - ux * ux)
-    vyy = cov_norm * (box(y * y) - uy * uy)
-    vxy = cov_norm * (box(x * y) - ux * uy)
-    s = ((2 * ux * uy + c1) * (2 * vxy + c2)) / ((ux * ux + uy * uy + c1) * (vxx + vyy + c2))
-    return float(s[3:-3, 3:-3].astype(np.float64).mean())
 
 
 def candidate_settings():
@@ -145,7 +127,7 @@ def _grid_one(args):
         rows.append({
             "filename": name, "wb_gain_cap": cap, "gamma_strength": gs,
             "clahe_clip_scale": clip_s, "dcp_omega": omega,
-            "psnr": compute_psnr(fused, ref), "ssim": _ssim_fast(fused, ref),
+            "psnr": compute_psnr(fused, ref), "ssim": compute_ssim_fast(fused, ref),
         })
     return rows
 

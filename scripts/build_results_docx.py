@@ -21,6 +21,11 @@ Run AFTER the calibration scripts and build_report_data.py (default
 --split test) have produced their outputs in --data-dir.
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
+
 import argparse
 import json
 import os

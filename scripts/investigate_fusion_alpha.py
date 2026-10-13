@@ -11,6 +11,11 @@ independent of the golden-section search itself, so this is a ground-truth
 check on the objective's shape, not just a re-run of the optimizer.
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
+
 import os
 import random
 
@@ -25,7 +30,7 @@ from modules.fusion import compute_weight_map, multiscale_fusion
 from modules.fusion_optimizer import optimize_fusion_weight
 from modules.metrics import combined_quality_score
 from modules.water_type_classifier import classify_water_type
-from pipeline import restore_image
+from modules.pipeline import restore_image
 
 OUT_DIR = "outputs/fusion_alpha_investigation"
 ALPHA_GRID = np.round(np.arange(0.0, 1.0001, 0.02), 4)

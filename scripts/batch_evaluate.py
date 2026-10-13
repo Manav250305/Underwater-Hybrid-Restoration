@@ -13,11 +13,16 @@ run still leaves a usable CSV, and skips unreadable/failing images with a
 logged warning instead of aborting the whole run.
 
 Usage:
-    python batch_evaluate.py
-    python batch_evaluate.py --output outputs/batch_metrics.csv --limit 50
-    python batch_evaluate.py --no-downstream        # skip ORB/edge (faster)
-    python batch_evaluate.py --workers 8            # parallel over images
+    python scripts/batch_evaluate.py
+    python scripts/batch_evaluate.py --output outputs/batch_metrics.csv --limit 50
+    python scripts/batch_evaluate.py --no-downstream        # skip ORB/edge (faster)
+    python scripts/batch_evaluate.py --workers 8            # parallel over images
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import argparse
 import csv
@@ -30,7 +35,7 @@ import cv2
 from modules.dataset_loader import list_pairs
 from modules.downstream_validation import downstream_validation_report
 from modules.metrics import evaluate_full_reference, evaluate_no_reference
-from pipeline import run_all_pipelines
+from modules.pipeline import run_all_pipelines
 
 FIELDNAMES = [
     "filename",

@@ -38,6 +38,11 @@ independent transforms of the raw image, so they're identical (modulo
 float noise) across all four CSVs -- no need to re-aggregate duplicates.
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
+
 import argparse
 import os
 

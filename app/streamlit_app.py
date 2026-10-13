@@ -3,7 +3,7 @@ streamlit_app.py — Interactive demo frontend for the Hybrid Underwater
 Image Restoration pipeline.
 
 Run with:
-    ./dip/bin/streamlit run streamlit_app.py
+    ./dip/bin/streamlit run app/streamlit_app.py
 
 Tabs (lazy: only the open tab computes):
   Compare     focused before/after view + every method side by side
@@ -17,6 +17,11 @@ Sidebar toggles switch Module 5 (water-type routing) and Module 7 (per-image
 fusion weight) on/off live, for demoing the ablation in real time. Styling
 comes from .streamlit/config.toml (light + dark ocean theme).
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import os
 import random
@@ -32,7 +37,7 @@ from modules.downstream_validation import downstream_validation_report
 from modules.fusion import compute_weight_map, multiscale_fusion
 from modules.fusion_alpha_predictor import load_model as load_alpha_model
 from modules.metrics import evaluate_full_reference, evaluate_no_reference
-from pipeline import run_all_pipelines
+from modules.pipeline import run_all_pipelines
 
 st.set_page_config(page_title="Underwater restoration", page_icon=":material/water:", layout="wide")
 

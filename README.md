@@ -82,7 +82,7 @@ All stages run on one example test image (`794_img_.png`, classified *clear blue
 
 ![Every stage of the proposed hybrid on one UIEB test image](outputs/method_stages_example.jpg)
 
-*Regenerate with `python make_method_figure.py` (any UIEB image via `--image`).*
+*Regenerate with `python scripts/make_method_figure.py` (any UIEB image via `--image`).*
 
 ### 1.3 Stage by stage
 
@@ -394,9 +394,9 @@ avoid that:
 
 | Stage | Script | What it chooses |
 |---|---|---|
-| 1 | [calibrate_routing.py](calibrate_routing.py) | WB cap, gamma ×, CLAHE clip ×, DCP ω: a grid of 182 settings, for one global profile and one per water type |
-| 2 | [calibrate_red_compensation.py](calibrate_red_compensation.py) | Red-compensation strength *s* ∈ {0 … 5}, globally and per water type |
-| 3 | [calibrate_fusion_alpha.py](calibrate_fusion_alpha.py) | The Module 7 ridge model (written to `modules/fusion_alpha_model.json`) |
+| 1 | [scripts/calibrate_routing.py](scripts/calibrate_routing.py) | WB cap, gamma ×, CLAHE clip ×, DCP ω: a grid of 182 settings, for one global profile and one per water type |
+| 2 | [scripts/calibrate_red_compensation.py](scripts/calibrate_red_compensation.py) | Red-compensation strength *s* ∈ {0 … 5}, globally and per water type |
+| 3 | [scripts/calibrate_fusion_alpha.py](scripts/calibrate_fusion_alpha.py) | The Module 7 ridge model (written to `modules/fusion_alpha_model.json`) |
 
 4. **Fair comparison.** "Routing off" uses a global profile tuned with the
    *same* grid, data and objective, so the ablation compares per-type tuning
@@ -423,7 +423,7 @@ learned per pixel and there is no neural network.
   keypoint yield and matchability plus Canny edge density. These are proxies
   for whether restoration helps tasks such as SLAM, 3-D reconstruction and
   detection, not just appearance.
-- **Statistics** ([build_report_data.py](build_report_data.py)):
+- **Statistics** ([scripts/build_report_data.py](scripts/build_report_data.py)):
   - paired Wilcoxon tests with Holm correction across all comparisons
   - rank-biserial effect sizes
   - bootstrap 95% CIs
@@ -461,35 +461,44 @@ penalises more than SSIM. The full statistics are in the report.
 
 ## 3. Project Structure
 
+Everything lives in a folder except the three files that must sit at the
+repository root (`README.md`, `requirements.txt`, `.gitignore`). Run all
+commands from the repository root: scripts read and write `outputs/` and
+`data/` relative to it.
+
 ```
 underwater_restoration/
-├── modules/
-│   ├── white_balance.py           # Module 1  red-channel compensation + gray-world white balance
-│   ├── gamma_correction.py        # Module 2  adaptive gamma
-│   ├── clahe_module.py            # Module 3  CLAHE on CIELAB lightness
-│   ├── dehazing.py                # Module 4  underwater dark channel prior + guided filter
-│   ├── water_type_classifier.py   # Module 5  ★ water-type classification + calibrated profiles
-│   ├── fusion.py                  # Module 6  weight maps + Laplacian-pyramid fusion
-│   ├── fusion_alpha_predictor.py  # Module 7  ★ per-image fusion-weight predictor
-│   ├── fusion_alpha_model.json    #           its fitted ridge model (from calibrate_fusion_alpha.py)
-│   ├── fusion_optimizer.py        #           original Module 7 (UCIQE+UIQM search), kept for comparison
-│   ├── metrics.py                 # Module 8  entropy, UCIQE, UIQM, PSNR, SSIM
-│   ├── downstream_validation.py   # Module 9  ★ ORB keypoints, matching, edge density
-│   └── dataset_loader.py          # resolves UIEB paths (local data/ or external drive)
-├── pipeline.py                    # runs the whole hybrid + the UDCP / HE / CLAHE-only baselines
-├── main.py                        # command-line restoration of a single image
-├── calibrate_routing.py           # calibration stage 1 (profile multipliers)
-├── calibrate_red_compensation.py  # calibration stage 2 (red-compensation strength)
-├── calibrate_fusion_alpha.py      # calibration stage 3 (Module 7 predictor) + NR-metric alignment study
-├── batch_evaluate.py              # runs one configuration over all 890 UIEB pairs -> CSV
-├── run_all_evaluations.sh         # runs every ablation configuration, then the report
-├── build_report_data.py           # CSVs -> summary, significance and ablation tables (test split)
-├── build_results_docx.py          # tables -> outputs/Review_II_Results_Section.docx
-├── investigate_fusion_alpha.py    # diagnostic: shape of the UCIQE+UIQM(α) curve per image
-├── make_method_figure.py          # the stage-by-stage figure in Section 1.2
-├── streamlit_app.py               # interactive demo (Section 9)
-├── data/                          # UIEB raw/, reference/, challenging/ (not in git)
-└── outputs/                       # results CSVs, calibration outputs, figures, report
+├── README.md · requirements.txt · .gitignore
+├── .streamlit/config.toml           # app theme (light + dark)
+├── app/
+│   └── streamlit_app.py             # interactive demo (Section 9)
+├── modules/                         # the restoration library
+│   ├── pipeline.py                  # runs the whole hybrid + the UDCP / HE / CLAHE-only baselines
+│   ├── white_balance.py             # Module 1  red-channel compensation + gray-world white balance
+│   ├── gamma_correction.py          # Module 2  adaptive gamma
+│   ├── clahe_module.py              # Module 3  CLAHE on CIELAB lightness
+│   ├── dehazing.py                  # Module 4  underwater dark channel prior + guided filter
+│   ├── water_type_classifier.py     # Module 5  ★ water-type classification + calibrated profiles
+│   ├── fusion.py                    # Module 6  weight maps + Laplacian-pyramid fusion
+│   ├── fusion_alpha_predictor.py    # Module 7  ★ per-image fusion-weight predictor
+│   ├── fusion_alpha_model.json      #           its fitted ridge model
+│   ├── fusion_optimizer.py          #           original Module 7 (UCIQE+UIQM search), kept for comparison
+│   ├── metrics.py                   # Module 8  entropy, UCIQE, UIQM, PSNR, SSIM
+│   ├── downstream_validation.py     # Module 9  ★ ORB keypoints, matching, edge density
+│   └── dataset_loader.py            # resolves UIEB paths (local data/ or external drive)
+├── scripts/
+│   ├── restore.py                   # restore a single image from the command line
+│   ├── calibrate_routing.py         # calibration stage 1 (profile multipliers)
+│   ├── calibrate_red_compensation.py# calibration stage 2 (red-compensation strength)
+│   ├── calibrate_fusion_alpha.py    # calibration stage 3 (Module 7 predictor) + NR-metric study
+│   ├── batch_evaluate.py            # one configuration over all 890 UIEB pairs -> CSV
+│   ├── run_all_evaluations.sh       # every ablation configuration, then the report
+│   ├── build_report_data.py         # CSVs -> summary / significance / ablation tables
+│   ├── build_results_docx.py        # tables -> outputs/Review_II_Results_Section.docx
+│   ├── investigate_fusion_alpha.py  # diagnostic: shape of the UCIQE+UIQM(α) curve
+│   └── make_method_figure.py        # the stage-by-stage figure in Section 1.2
+├── data/                            # UIEB raw/, reference/, challenging/ (not in git)
+└── outputs/                         # result CSVs, calibration outputs, figures, report
 ```
 
 ## 4. Setup
@@ -535,39 +544,39 @@ raw_img, ref_img = load_pair("10139.png")   # BGR np.ndarrays
 
 **Restore one image** (no dataset needed for the synthetic smoke test):
 ```bash
-python main.py --compare-baselines --downstream-eval        # synthetic test image
-python main.py --input data/raw/794_img_.png --reference data/reference/794_img_.png \
+python scripts/restore.py --compare-baselines --downstream-eval        # synthetic test image
+python scripts/restore.py --input data/raw/794_img_.png --reference data/reference/794_img_.png \
                --output outputs/restored.png --compare-baselines --downstream-eval
-python main.py --input data/raw/794_img_.png --no-routing    # Module 5 off (global profile)
-python main.py --input data/raw/794_img_.png --no-fusion-opt # Module 7 off (alpha = 0.5)
+python scripts/restore.py --input data/raw/794_img_.png --no-routing    # Module 5 off (global profile)
+python scripts/restore.py --input data/raw/794_img_.png --no-fusion-opt # Module 7 off (alpha = 0.5)
 ```
 
 **Calibrate** (calibration split only). Copy the stage 1–2 results from
 `outputs/*_calibration_selected.json` into `TYPE_PROFILES` / `GLOBAL_PROFILE`
 in `modules/water_type_classifier.py`. Stage 3 writes its model file directly.
 ```bash
-python calibrate_routing.py --workers 8
-python calibrate_red_compensation.py --workers 8
-python calibrate_fusion_alpha.py --workers 8
+python scripts/calibrate_routing.py --workers 8
+python scripts/calibrate_red_compensation.py --workers 8
+python scripts/calibrate_fusion_alpha.py --workers 8
 ```
 
 **Evaluate everything and rebuild the report** (all six configurations, about
 an hour on 8 cores):
 ```bash
-./run_all_evaluations.sh
+./scripts/run_all_evaluations.sh
 ```
-Or run one configuration with `batch_evaluate.py`. The flags are
+Or run one configuration with `scripts/batch_evaluate.py`. The flags are
 `--no-routing`, `--fixed-alpha 0.5`, `--fusion-objective nr_metrics`,
 `--no-red-comp`, `--no-downstream`, `--limit N` and `--workers N`. Then run
-`build_report_data.py` and `build_results_docx.py`.
+`scripts/build_report_data.py` and `scripts/build_results_docx.py`.
 
-**Regenerate the stage figure:** `python make_method_figure.py [--image NAME]`.
+**Regenerate the stage figure:** `python scripts/make_method_figure.py [--image NAME]`.
 
 ## 7. Evaluation Results
 
-`build_report_data.py` produces these numbers from the batch CSVs
+`scripts/build_report_data.py` produces these numbers from the batch CSVs
 (`outputs/ablation_summary.csv`, `outputs/ablation_module_deltas.csv`), and
-`build_results_docx.py` turns them into `outputs/Review_II_Results_Section.docx`
+`scripts/build_results_docx.py` turns them into `outputs/Review_II_Results_Section.docx`
 along with:
 - significance tests
 - the per-water-type breakdown
@@ -626,7 +635,7 @@ wrong. They are recorded with evidence in Section 9 of the results docx.
 ## 9. Interactive Demo (Streamlit)
 
 ```bash
-./dip/bin/streamlit run streamlit_app.py      # opens http://localhost:8501
+./dip/bin/streamlit run app/streamlit_app.py      # opens http://localhost:8501 (run from the repo root)
 ```
 
 Pick any UIEB image or upload your own, and switch **Module 5** (routing)

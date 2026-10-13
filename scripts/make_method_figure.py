@@ -3,9 +3,14 @@ make_method_figure.py — Render every stage of the proposed hybrid on one
 UIEB image, for the README's "How the proposed hybrid works" section.
 
 Usage:
-    python make_method_figure.py                     # default: 794_img_.png
-    python make_method_figure.py --image 324_img_.png --output outputs/method_stages_324.jpg
+    python scripts/make_method_figure.py                     # default: 794_img_.png
+    python scripts/make_method_figure.py --image 324_img_.png --output outputs/method_stages_324.jpg
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import argparse
 
@@ -16,7 +21,7 @@ import matplotlib.pyplot as plt
 
 from modules.dataset_loader import load_pair
 from modules.metrics import evaluate_full_reference
-from pipeline import restore_image
+from modules.pipeline import restore_image
 
 
 def main():

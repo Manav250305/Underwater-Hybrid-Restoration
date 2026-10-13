@@ -1,15 +1,20 @@
 """
-main.py — Demo entry point for the Hybrid Underwater Image Restoration pipeline.
+restore.py — Command-line entry point for the Hybrid Underwater Image Restoration pipeline.
 
 Usage:
-    python main.py --input path/to/image.jpg --output outputs/restored.jpg
-    python main.py --input path/to/image.jpg --compare-baselines
-    python main.py --input path/to/image.jpg --reference path/to/reference.jpg --downstream-eval
+    python scripts/restore.py --input path/to/image.jpg --output outputs/restored.jpg
+    python scripts/restore.py --input path/to/image.jpg --compare-baselines
+    python scripts/restore.py --input path/to/image.jpg --reference path/to/reference.jpg --downstream-eval
 
 If no --input is given, runs on a synthetically generated underwater-like
 test image so the pipeline can be sanity-checked without the UIEB dataset
 downloaded yet.
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # repo root, so `modules` is importable
 
 import argparse
 import os
@@ -17,7 +22,7 @@ import os
 import cv2
 import numpy as np
 
-from pipeline import restore_image, run_all_pipelines
+from modules.pipeline import restore_image, run_all_pipelines
 from modules.metrics import evaluate_no_reference, evaluate_full_reference
 from modules.downstream_validation import downstream_validation_report
 from modules.water_type_classifier import classify_water_type
