@@ -44,14 +44,14 @@ st.set_page_config(page_title="Underwater restoration", page_icon=":material/wat
 MAX_UPLOAD_DIM = 1024  # downscale arbitrary uploads so the pipeline stays interactive
 # Bump whenever run_all_pipelines' output changes (new baselines, new diagnostics):
 # it is part of the cache key, so results cached by an older pipeline are never reused.
-PIPELINE_CACHE_VERSION = 4
+PIPELINE_CACHE_VERSION = 5
 
 # Fixed method order + colors; must match chartCategoricalColors in .streamlit/config.toml
-METHOD_ORDER = ["Raw", "Conventional HE", "CLAHE-only", "UDCP", "Proposed hybrid"]
-METHOD_COLORS = ["#64748b", "#f97316", "#10b981", "#8b5cf6", "#0e7490"]
-RESULT_KEYS = {"Conventional HE": "conventional_he", "CLAHE-only": "clahe_only",
+METHOD_ORDER = ["Raw", "Conventional HE", "CLAHE-only", "WB + CLAHE", "UDCP", "Proposed hybrid"]
+METHOD_COLORS = ["#64748b", "#f97316", "#10b981", "#f59e0b", "#8b5cf6", "#0e7490"]
+RESULT_KEYS = {"Conventional HE": "conventional_he", "CLAHE-only": "clahe_only", "WB + CLAHE": "wb_clahe",
                "UDCP": "udcp", "Proposed hybrid": "proposed_hybrid"}
-METHOD_SLUGS = {"Raw": "raw", "Conventional HE": "he", "CLAHE-only": "clahe",
+METHOD_SLUGS = {"Raw": "raw", "Conventional HE": "he", "CLAHE-only": "clahe", "WB + CLAHE": "wbclahe",
                 "UDCP": "udcp", "Proposed hybrid": "hybrid"}
 # One source of truth for module explanations: "short" appears under each
 # pipeline-stage card, "detail" in the About tab's how-it-works section.
@@ -366,6 +366,12 @@ except Exception as e:
 diag = results["hybrid_diagnostics"]
 routing = diag.get("routing")
 stem = os.path.splitext(image_name or "image")[0]
+missing = [k for k in RESULT_KEYS.values() if k not in results]
+if missing:  # the server imported an older modules/pipeline.py; Streamlit doesn't reload code outside app/
+    st.error("The pipeline code changed after this server started (missing: " + ", ".join(missing) + "). "
+             "Restart the app: Ctrl+C, then `./dip/bin/streamlit run app/streamlit_app.py`.",
+             icon=":material/restart_alt:")
+    st.stop()
 method_imgs = {"Raw": raw_bgr, **{m: results[k] for m, k in RESULT_KEYS.items()}}
 
 with st.container(horizontal=True, gap="small"):
@@ -418,6 +424,8 @@ if tab_compare.open:
                 "It is fast and punchy, but often over-saturates and shifts colours.\n"
                 "- **CLAHE-only**: contrast-limited adaptive equalisation on each channel. Local and gentle, and "
                 "the strongest classical baseline on UIEB, but it doesn't remove the colour cast or haze.\n"
+                "- **WB + CLAHE**: gray-world white balance, then CLAHE on the lightness channel with standard "
+                "settings. This is the quick fix most often bolted onto underwater robotics and vision pipelines.\n"
                 "- **UDCP**: the underwater dark channel prior (Drews et al., 2013), a physics-based dehazing "
                 "method. It removes haze but tends to darken and leave the colour cast.\n"
                 "- **Proposed hybrid**: this project. Red compensation, white balance, gamma, then a CLAHE stream "
@@ -436,8 +444,9 @@ if tab_compare.open:
 
         st.subheader("All methods")
         st.caption("The same image through every method. Each card can be downloaded as a PNG.")
-        cols = st.columns(4)
-        for col, name in zip(cols, METHOD_ORDER[1:]):
+        others = METHOD_ORDER[1:]
+        cols = [c for _ in range(0, len(others), 3) for c in st.columns(3)]
+        for col, name in zip(cols, others):
             with col:
                 image_card(method_imgs[name], name, f"{stem}_{METHOD_SLUGS[name]}.png",
                            key=f"dl_grid_{METHOD_SLUGS[name]}")

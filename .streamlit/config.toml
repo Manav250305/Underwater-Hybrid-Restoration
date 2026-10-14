@@ -1,6 +1,6 @@
 # Ocean theme with light + dark variants (users can switch in the app menu).
 # chartCategoricalColors order matches METHOD_ORDER in streamlit_app.py
-# (Raw, Conventional HE, CLAHE-only, UDCP, Proposed hybrid), so each method
+# (Raw, Conventional HE, CLAHE-only, WB + CLAHE, UDCP, Proposed hybrid), so each method
 # keeps the same color in every chart.
 
 [theme]
@@ -15,7 +15,7 @@ buttonRadius = "10px"
 showWidgetBorder = true
 showSidebarBorder = true
 linkUnderline = false
-chartCategoricalColors = ["#64748b", "#f97316", "#10b981", "#8b5cf6", "#0e7490"]
+chartCategoricalColors = ["#64748b", "#f97316", "#10b981", "#f59e0b", "#8b5cf6", "#0e7490"]
 
 [theme.light]
 primaryColor = "#0e7490"

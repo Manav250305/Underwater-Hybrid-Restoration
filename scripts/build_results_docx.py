@@ -46,15 +46,16 @@ METHOD_LABELS = {
     "udcp": "UDCP (baseline)",
     "conventional_he": "Conventional HE (baseline)",
     "clahe_only": "CLAHE-only (baseline)",
+    "wb_clahe": "Gray-world WB + CLAHE (baseline)",
     "hybrid_neither": "Hybrid — neither module",
     "hybrid_fusionopt_only": "Hybrid — Module 7 only",
     "hybrid_routing_only": "Hybrid — Module 5 only",
     "hybrid_full": "Hybrid — full (proposed)",
     "hybrid_nr_search": "Hybrid — original Module 7 (UCIQE+UIQM search)‡",
 }
-METHOD_ORDER = ["udcp", "conventional_he", "clahe_only", "hybrid_neither", "hybrid_fusionopt_only",
+METHOD_ORDER = ["udcp", "conventional_he", "clahe_only", "wb_clahe", "hybrid_neither", "hybrid_fusionopt_only",
                 "hybrid_routing_only", "hybrid_full", "hybrid_nr_search"]
-BASELINES = ["udcp", "conventional_he", "clahe_only"]
+BASELINES = ["udcp", "conventional_he", "clahe_only", "wb_clahe"]
 TUNING_NOTE = ("All parameter selection (Module 5 profiles, red-compensation strength, Module 7 predictor) "
                "used PSNR/SSIM against references on the calibration split only; every number here is on "
                "the held-out test split. ‡ The original Module 7 maximizes UCIQE+UIQM per image, so its "
@@ -236,7 +237,8 @@ def build_loss_discussion(doc, summary_df, sig_df):
         "PSNR/SSIM against the UIEB references. "
         f"On the test split, hybrid PSNR = {g('hybrid_full','psnr'):.2f} dB and SSIM = "
         f"{g('hybrid_full','ssim'):.3f}, against CLAHE-only {g('clahe_only','psnr'):.2f} dB / "
-        f"{g('clahe_only','ssim'):.3f}, conventional HE {g('conventional_he','psnr'):.2f} dB / "
+        f"{g('clahe_only','ssim'):.3f}, gray-world WB + CLAHE {g('wb_clahe','psnr'):.2f} dB / "
+        f"{g('wb_clahe','ssim'):.3f}, conventional HE {g('conventional_he','psnr'):.2f} dB / "
         f"{g('conventional_he','ssim'):.3f}, and UDCP {g('udcp','psnr'):.2f} dB / {g('udcp','ssim'):.3f}. "
         "The UIEB references are not ground-truth clear-water images. Li et al. (2019) produced each "
         "one by having volunteers choose the preferred output among 12 existing enhancement methods. "

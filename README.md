@@ -22,11 +22,13 @@ and evaluated on a separate, held-out part.
 | UDCP (physics-based dehazing) | 12.99 | 0.656 |
 | Conventional histogram equalisation | 16.36 | 0.781 |
 | CLAHE-only | **18.32** | 0.840 |
+| Gray-world WB + CLAHE (common practitioner recipe) | 17.93 | 0.838 |
 | **Proposed hybrid** | **18.27** | **0.871** |
 
 The proposed hybrid has the highest SSIM of all methods, matches CLAHE-only on
-PSNR (−0.04 dB: negligible and not significant), and clearly beats HE
-(+1.91 dB) and UDCP (+5.29 dB). See [Section 1.6](#16-what-each-part-contributes).
+PSNR (−0.04 dB: negligible and not significant), and clearly beats the usual
+practitioner recipe of gray-world white balance + CLAHE (+0.34 dB, +0.033 SSIM),
+HE (+1.91 dB) and UDCP (+5.29 dB). See [Section 1.6](#16-what-each-part-contributes).
 
 ![Demo](outputs/demo.gif)
 
@@ -456,6 +458,7 @@ Held-out test set, 622 images:
 | Original Module 7 (UCIQE+UIQM search) instead of the predictor | −0.77 dB | −0.024 | ablation row 7 vs. row 6 |
 
 Compared with the baselines:
+- **Proposed hybrid vs. gray-world WB + CLAHE:** +0.34 dB (small effect), +0.033 SSIM (large effect)
 - **Proposed hybrid vs. HE:** +1.91 dB, +0.091 SSIM
 - **Proposed hybrid vs. UDCP:** +5.29 dB, +0.216 SSIM
 - **Proposed hybrid vs. CLAHE-only:** −0.04 dB PSNR (negligible, not significant), +0.032 SSIM (medium effect)
@@ -485,7 +488,7 @@ underwater_restoration/
 ├── app/
 │   └── streamlit_app.py             # interactive demo (Section 9)
 ├── modules/                         # the restoration library
-│   ├── pipeline.py                  # runs the whole hybrid + the UDCP / HE / CLAHE-only baselines
+│   ├── pipeline.py                  # runs the whole hybrid + the UDCP / HE / CLAHE-only / WB+CLAHE baselines
 │   ├── white_balance.py             # Module 1  red-channel compensation + gray-world white balance
 │   ├── gamma_correction.py          # Module 2  adaptive gamma
 │   ├── clahe_module.py              # Module 3  CLAHE on CIELAB lightness
@@ -609,6 +612,7 @@ along with:
 | UDCP baseline (Drews et al. 2013) | 12.99 | 0.656 | 6.81 | 0.430 | 2.271 |
 | Conventional (global HE) baseline | 16.36 | 0.781 | 7.84 | 0.445 | 2.536 |
 | CLAHE-only baseline | 18.32 | 0.840 | 7.30 | 0.359 | 2.175 |
+| Gray-world WB + CLAHE baseline (common practitioner recipe) | 17.93 | 0.838 | 7.31 | 0.331 | 2.297 |
 | Hybrid — global profile, fixed α=0.5 (neither novel module) | 18.09 | 0.867 | 7.19 | 0.309 | 2.107 |
 | Hybrid — global profile, predicted α (Module 7 only) | 18.25 | 0.870 | 7.22 | 0.310 | 2.122 |
 | Hybrid — routed profile, fixed α=0.5 (Module 5 only) | 18.11 | 0.869 | 7.20 | 0.311 | 2.120 |

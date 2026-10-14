@@ -107,7 +107,7 @@ N = {
     "n_test": int((split.split == "test").sum()), "n_cal": int((split.split == "calibration").sum()),
     "type_counts": split.water_type.value_counts().to_dict(),
     "means": {m: {k: float(pm.loc[m, k]) for k in pm.columns} for m in pm.index},
-    "sig": {c: {m: s(c, m) for m in ["psnr", "ssim", "entropy", "uciqe", "uiqm"]} for c in ["udcp", "conventional_he", "clahe_only", "hybrid_neither", "hybrid_nr_search"]},
+    "sig": {c: {m: s(c, m) for m in ["psnr", "ssim", "entropy", "uciqe", "uiqm"]} for c in ["udcp", "conventional_he", "clahe_only", "wb_clahe", "hybrid_neither", "hybrid_nr_search"]},
     "deltas": {m: deltas.loc[m].to_dict() for m in deltas.index},
     "red": {m: red.loc[m][["mean_diff", "ci95_lo", "ci95_hi", "rank_biserial", "effect_size"]].to_dict() for m in red.index},
     "selectors": {k: {"psnr": float(v.psnr), "ssim": float(v.ssim), "boundary": float(v.frac_alpha_at_0_or_1)} for k, v in sel.iterrows()},

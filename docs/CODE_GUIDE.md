@@ -49,7 +49,8 @@ The one entry point the app and scripts call.
 | `conventional_baseline(img)` | Global histogram equalisation on each RGB channel. |
 | `clahe_only_baseline(img)` | CLAHE (clip 2.0, 8×8 tiles) on each RGB channel. |
 | `udcp_baseline(img)` | Underwater dark channel prior on the raw image (Drews et al., 2013). |
-| `run_all_pipelines(img, …)` | The hybrid plus all three baselines in one call. Used by the app and by batch evaluation. |
+| `wb_clahe_baseline(img)` | The common practitioner recipe: gray-world white balance, then CLAHE on L* (clip 2.0, 8×8). Untuned on purpose. |
+| `run_all_pipelines(img, …)` | The hybrid plus all four baselines in one call. Used by the app and by batch evaluation. |
 
 ### `water_type_classifier.py` — Module 5 ★ (routing)
 | Item | What it does |
@@ -169,7 +170,7 @@ then `/Volumes/Lexar/…`. macOS `._` sidecar files are skipped.
 
 | CSV | Flags | Meaning |
 |---|---|---|
-| `batch_metrics.csv` | *(none)* | Full hybrid. It also holds the HE, CLAHE-only and UDCP baseline columns and the downstream metrics. |
+| `batch_metrics.csv` | *(none)* | Full hybrid. It also holds the HE, CLAHE-only, WB+CLAHE and UDCP baseline columns and the downstream metrics. |
 | `ablation_no_routing.csv` | `--no-routing` | Module 7 only |
 | `ablation_fixed_alpha.csv` | `--fixed-alpha 0.5` | Module 5 only |
 | `ablation_neither.csv` | `--no-routing --fixed-alpha 0.5` | Neither novel module (the control) |

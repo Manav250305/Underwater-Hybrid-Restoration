@@ -2,7 +2,7 @@
 batch_evaluate.py — Batch evaluation over the full UIEB raw/reference-890 set.
 
 Loops over every paired image (via modules.dataset_loader.iter_pairs), runs
-the proposed hybrid pipeline plus all three baselines, computes no-reference
+the proposed hybrid pipeline plus all four baselines, computes no-reference
 metrics (entropy/UCIQE/UIQM), full-reference metrics (PSNR/SSIM) and
 downstream task validation (ORB keypoints, edge density), and accumulates
 everything into one CSV row per image — this is the data source for the
@@ -45,10 +45,12 @@ FIELDNAMES = [
     "clahe_entropy", "clahe_uciqe", "clahe_uiqm",
     "he_entropy", "he_uciqe", "he_uiqm",
     "udcp_entropy", "udcp_uciqe", "udcp_uiqm",
+    "wbclahe_entropy", "wbclahe_uciqe", "wbclahe_uiqm",
     "hybrid_psnr", "hybrid_ssim",
     "clahe_psnr", "clahe_ssim",
     "he_psnr", "he_ssim",
     "udcp_psnr", "udcp_ssim",
+    "wbclahe_psnr", "wbclahe_ssim",
     "keypoint_gain_pct", "edge_density_gain_pct", "cross_matches",
 ]
 
@@ -68,6 +70,7 @@ def evaluate_one(name, raw_img, ref_img, use_water_type_routing=True,
     clahe = results["clahe_only"]
     he = results["conventional_he"]
     udcp = results["udcp"]
+    wbclahe = results["wb_clahe"]
     diag = results["hybrid_diagnostics"]
     routing = diag.get("routing") or {}
 
@@ -76,11 +79,13 @@ def evaluate_one(name, raw_img, ref_img, use_water_type_routing=True,
     nr_clahe = evaluate_no_reference(clahe)
     nr_he = evaluate_no_reference(he)
     nr_udcp = evaluate_no_reference(udcp)
+    nr_wbclahe = evaluate_no_reference(wbclahe)
 
     fr_hybrid = evaluate_full_reference(hybrid, ref_img)
     fr_clahe = evaluate_full_reference(clahe, ref_img)
     fr_he = evaluate_full_reference(he, ref_img)
     fr_udcp = evaluate_full_reference(udcp, ref_img)
+    fr_wbclahe = evaluate_full_reference(wbclahe, ref_img)
 
     row = {
         "filename": name,
@@ -95,10 +100,12 @@ def evaluate_one(name, raw_img, ref_img, use_water_type_routing=True,
         "clahe_entropy": nr_clahe["entropy"], "clahe_uciqe": nr_clahe["uciqe"], "clahe_uiqm": nr_clahe["uiqm"],
         "he_entropy": nr_he["entropy"], "he_uciqe": nr_he["uciqe"], "he_uiqm": nr_he["uiqm"],
         "udcp_entropy": nr_udcp["entropy"], "udcp_uciqe": nr_udcp["uciqe"], "udcp_uiqm": nr_udcp["uiqm"],
+        "wbclahe_entropy": nr_wbclahe["entropy"], "wbclahe_uciqe": nr_wbclahe["uciqe"], "wbclahe_uiqm": nr_wbclahe["uiqm"],
         "hybrid_psnr": fr_hybrid["psnr"], "hybrid_ssim": fr_hybrid["ssim"],
         "clahe_psnr": fr_clahe["psnr"], "clahe_ssim": fr_clahe["ssim"],
         "he_psnr": fr_he["psnr"], "he_ssim": fr_he["ssim"],
         "udcp_psnr": fr_udcp["psnr"], "udcp_ssim": fr_udcp["ssim"],
+        "wbclahe_psnr": fr_wbclahe["psnr"], "wbclahe_ssim": fr_wbclahe["ssim"],
     }
     return row, hybrid
 

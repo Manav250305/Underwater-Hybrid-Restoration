@@ -151,6 +151,19 @@ def conventional_baseline(img_bgr: np.ndarray) -> np.ndarray:
     return cv2.merge(channels_eq)
 
 
+def wb_clahe_baseline(img_bgr: np.ndarray) -> np.ndarray:
+    """
+    Baseline 4: the common practitioner recipe (e.g. OpenCV preprocessing in
+    underwater robotics / SLAM pipelines): gray-world white balance, then CLAHE
+    on the CIELAB lightness channel with OpenCV's usual settings (clip 2.0,
+    8x8 tiles). Deliberately untuned: it stands for what people typically
+    bolt on, not for a calibrated method. No red compensation, gamma,
+    dehazing or fusion.
+    """
+    wb = adaptive_white_balance(img_bgr)  # default 4x gain cap
+    return clahe_lab_enhancement(wb, clip_limit=2.0, tile_grid_size=(8, 8))
+
+
 def udcp_baseline(img_bgr: np.ndarray) -> np.ndarray:
     """
     Baseline 3: Underwater Dark Channel Prior (Drews et al., 2013) on the raw
@@ -165,7 +178,7 @@ def run_all_pipelines(img_bgr: np.ndarray, use_water_type_routing: bool = True,
                        use_fusion_optimizer: bool = True, fixed_alpha: float = 0.5,
                        fusion_objective: str = "predicted", profile_overrides: dict = None) -> dict:
     """
-    Convenience function: run proposed hybrid + all three baselines for side-by-side
+    Convenience function: run proposed hybrid + all four baselines for side-by-side
     comparison. use_water_type_routing / use_fusion_optimizer / fixed_alpha are
     forwarded to restore_image() so this also drives the ablation configurations
     (Module 5 / Module 7 on or off) with the same baseline comparison in one call.
@@ -183,5 +196,6 @@ def run_all_pipelines(img_bgr: np.ndarray, use_water_type_routing: bool = True,
         "clahe_only": clahe_only_baseline(img_bgr),
         "conventional_he": conventional_baseline(img_bgr),
         "udcp": udcp_baseline(img_bgr),
+        "wb_clahe": wb_clahe_baseline(img_bgr),
         "hybrid_diagnostics": hybrid_result,
     }

@@ -4,7 +4,8 @@
 |---|---|
 | [CODE_GUIDE.md](CODE_GUIDE.md) | What every file in `modules/`, `scripts/`, `app/` and `outputs/` does, its key functions, what it reads and writes, and how the pieces connect. Start here before changing code. |
 | [PRESENTATION_GUIDE.md](PRESENTATION_GUIDE.md) | How to present the project at the review: who presents which slides, the full spoken script with timings, the live-demo script, a backup plan, prepared answers to likely questions and a pre-review checklist. |
-| [Review_II_Presentation.pptx](Review_II_Presentation.pptx) | The 18-slide review deck (widescreen). Speaker notes on every slide match the script in the presentation guide. |
+| [Review_II_Presentation.pptx](Review_II_Presentation.pptx) | The 17-slide review deck (widescreen). Speaker notes on every slide match the script in the presentation guide. |
+| [Review_II_Presentation.pdf](Review_II_Presentation.pdf) | The same deck as a PDF, for sharing or if PowerPoint isn't available. |
 
 Related material elsewhere in the repository:
 

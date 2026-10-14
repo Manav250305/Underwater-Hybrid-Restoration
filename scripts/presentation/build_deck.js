@@ -38,7 +38,7 @@ const THEME = {
   },
 };
 const HEX = { teal: "0E7490", coral: "F97316", green: "10B981", violet: "8B5CF6", slate: "64748B", ink: "0F172A", grid: "E2E8F0" };
-const METHOD_HEX = { udcp: HEX.violet, conventional_he: HEX.coral, clahe_only: HEX.green, hybrid_full: HEX.teal };
+const METHOD_HEX = { udcp: HEX.violet, conventional_he: HEX.coral, clahe_only: HEX.green, wb_clahe: "F59E0B", hybrid_full: HEX.teal };
 
 const f2 = (x) => Number(x).toFixed(2);
 const f3 = (x) => Number(x).toFixed(3);
@@ -121,6 +121,9 @@ async function iconPng(name, hex = "FFFFFF") {
   const ownRed = Object.keys(N.red_types).filter((t) => N.red_types[t].decision === "per-type");
   const redOrder = Object.keys(N.red_types).sort((a, b) => N.red_types[b].best - N.red_types[a].best);
   const cp = N.sig.clahe_only.psnr;
+  const names = { udcp: "UDCP", conventional_he: "HE", clahe_only: "CLAHE-only", wb_clahe: "WB+CLAHE" };
+  const bestSsim = Object.keys(METHOD_HEX).every((k) => M.hybrid_full.ssim >= M[k].ssim);
+  const ahead = Object.keys(names).filter((c) => ["psnr", "ssim"].every((m) => N.sig[c][m].d > 0 && N.sig[c][m].p < 0.05 && N.sig[c][m].eff !== "negligible"));
   const psnrLevel = cp.eff === "negligible" || cp.p >= 0.05; // no meaningful PSNR difference vs CLAHE-only
   const sigNote = (c, m) => (N.sig[c][m].p < 0.05 ? "" : ", not significant");
 
@@ -197,12 +200,9 @@ How strong each problem is depends on the water — deep water loses the most re
       text(s, t, { x: x + 0.35, y: y + 1.45, w: cw - 0.7, h: 0.8, fontSize: 18, bold: true, color: C.text2 });
       text(s, b, { x: x + 0.35, y: y + 2.3, w: cw - 0.7, h: 1.35, fontSize: 14 });
     });
-    text(s, "Plus a finding: popular no-reference quality scores (UCIQE, UIQM) mislead when used to tune a restoration pipeline.",
-      { x: MX, y: 6.4, w: CW, h: 0.4, fontSize: 14, italic: true, color: C.accent5, objectName: "finding teaser" });
   }
   notes(s, "Kopal", 1, `Our goal: restore underwater images using only classical image processing — no deep learning — and make every stage adapt to the water type.
-We contribute three novel modules. Module 5 classifies the water and routes parameters, including how much red light to restore. Module 7 predicts, per image, how to blend two complementary processing streams. Module 9 checks that restoration actually helps computer-vision tasks.
-We also report a finding: the popular no-reference scores UCIQE and UIQM mislead when you optimise for them.`);
+We contribute three novel modules. Module 5 classifies the water and routes parameters, including how much red light to restore. Module 7 predicts, per image, how to blend two complementary processing streams. Module 9 checks that restoration actually helps computer-vision tasks.`);
 
   // ===================== Method =====================
   pres.addSection({ title: "Method" });
@@ -438,24 +438,28 @@ One caveat: UIEB references are volunteer-preferred enhancements, not ground tru
 
   // 11 · Main results
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
-  s.addText("Results: best SSIM, clearly ahead of HE and UDCP", { placeholder: "title" });
   {
-    const meth = [["UDCP", "udcp"], ["Conventional HE", "conventional_he"], ["CLAHE-only", "clahe_only"], ["Proposed hybrid", "hybrid_full"]];
+    // title from the data: best SSIM? and which baselines are beaten on both metrics (significant, non-negligible)
+    s.addText(`Results: ${bestSsim ? "best SSIM" : "competitive"}${ahead.length ? ", clearly ahead of " + listJoin(ahead.map((c) => names[c])) : ""}`, { placeholder: "title" });
+  }
+  {
+    const meth = [["UDCP", "udcp"], ["Conventional HE", "conventional_he"], ["CLAHE-only", "clahe_only"], ["WB + CLAHE", "wb_clahe"], ["Proposed hybrid", "hybrid_full"]];
     const colors = meth.map((m) => METHOD_HEX[m[1]]);
     const cw = (CW - 0.4) / 2;
     s.addChart(pres.ChartType.bar, [{ name: "PSNR", labels: meth.map((m) => m[0]), values: meth.map((m) => M[m[1]].psnr) }],
-      { x: MX, y: 1.45, w: cw, h: 4.2, ...chartStyle(`PSNR (dB) · ${N.n_test} held-out images`), chartColors: colors, dataLabelFormatCode: "0.00", valAxisMinVal: 0, objectName: "psnr chart" });
+      { x: MX, y: 1.45, w: cw, h: 4.0, ...chartStyle(`PSNR (dB) · ${N.n_test} held-out images`), chartColors: colors, dataLabelFormatCode: "0.00", valAxisMinVal: 0, objectName: "psnr chart" });
     s.addChart(pres.ChartType.bar, [{ name: "SSIM", labels: meth.map((m) => m[0]), values: meth.map((m) => M[m[1]].ssim) }],
-      { x: MX + cw + 0.4, y: 1.45, w: cw, h: 4.2, ...chartStyle(`SSIM · ${N.n_test} held-out images`), chartColors: colors, dataLabelFormatCode: "0.000", valAxisMinVal: 0, valAxisMaxVal: 1, objectName: "ssim chart" });
+      { x: MX + cw + 0.4, y: 1.45, w: cw, h: 4.0, ...chartStyle(`SSIM · ${N.n_test} held-out images`), chartColors: colors, dataLabelFormatCode: "0.000", valAxisMinVal: 0, valAxisMaxVal: 1, objectName: "ssim chart" });
     const g = N.sig;
     text(s, [
       { text: "vs CLAHE-only: ", options: { bold: true } }, { text: `${sgn(g.clahe_only.psnr.d)} dB PSNR (${g.clahe_only.psnr.eff} effect), ${sgn(g.clahe_only.ssim.d, 3)} SSIM   ·   ` },
       { text: "vs HE: ", options: { bold: true } }, { text: `${sgn(g.conventional_he.psnr.d)} dB, ${sgn(g.conventional_he.ssim.d, 3)} SSIM   ·   ` },
+      { text: "vs WB+CLAHE: ", options: { bold: true } }, { text: `${sgn(g.wb_clahe.psnr.d)} dB, ${sgn(g.wb_clahe.ssim.d, 3)} SSIM   ·   ` },
       { text: "vs UDCP: ", options: { bold: true } }, { text: `${sgn(g.udcp.psnr.d)} dB, ${sgn(g.udcp.ssim.d, 3)} SSIM` },
-    ], { x: MX, y: 5.85, w: CW, h: 0.4, fontSize: 14, objectName: "results deltas" });
-    const ns = [["udcp", "UDCP"], ["conventional_he", "HE"], ["clahe_only", "CLAHE-only"]].flatMap(([c, l]) => ["psnr", "ssim"].filter((m) => g[c][m].p >= 0.05).map((m) => `${m.toUpperCase()} vs ${l}`));
+    ], { x: MX, y: 5.6, w: CW, h: 0.65, fontSize: 14, objectName: "results deltas" });
+    const ns = [["udcp", "UDCP"], ["conventional_he", "HE"], ["clahe_only", "CLAHE-only"], ["wb_clahe", "WB+CLAHE"]].flatMap(([c, l]) => ["psnr", "ssim"].filter((m) => g[c][m].p >= 0.05).map((m) => `${m.toUpperCase()} vs ${l}`));
     text(s, (ns.length ? `All differences significant after Holm correction except ${listJoin(ns)}.` : "All differences significant after Holm correction.") + " Mean paired differences per image.",
-      { x: MX, y: 6.3, w: CW, h: 0.35, fontSize: 12, italic: true, color: C.accent5 });
+      { x: MX, y: 6.4, w: CW, h: 0.35, fontSize: 12, italic: true, color: C.accent5 });
   }
   notes(s, "Manav", 1.5, `Here are the main results on the ${N.n_test} held-out images.
 Proposed hybrid: PSNR ${f2(M.hybrid_full.psnr)} dB, SSIM ${f3(M.hybrid_full.ssim)}. Against histogram equalisation: ${sgn(N.sig.conventional_he.psnr.d)} dB; against UDCP: ${sgn(N.sig.udcp.psnr.d)} dB.
@@ -465,16 +469,16 @@ Against CLAHE-only, the strongest classical baseline: ${psnrLevel ? `level on PS
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
   s.addText("What each part contributes", { placeholder: "title" });
   {
-    const d = N.deltas, nr = N.sig.hybrid_nr_search;
+    const d = N.deltas;
     const items = [
       ["Red-channel compensation", N.red.psnr.mean_diff, N.red.ssim.mean_diff],
       ["Module 7 · predicted α", d.psnr["fusion_optimizer_alone (row4-row3)"], d.ssim["fusion_optimizer_alone (row4-row3)"]],
       ["Module 5 · per-type routing", d.psnr["routing_alone (row5-row3)"], d.ssim["routing_alone (row5-row3)"]],
-      ["Original Module 7 search", -nr.psnr.d, -nr.ssim.d],
+      ["Modules 5 + 7 together", d.psnr["combined_gain (row6-row3)"], d.ssim["combined_gain (row6-row3)"]],
     ];
     s.addChart(pres.ChartType.bar, [{ name: "PSNR change", labels: items.map((i) => i[0]), values: items.map((i) => i[1]) }],
-      { x: MX, y: 1.45, w: 7.6, h: 5.2, barDir: "bar", ...chartStyle("Held-out PSNR change (dB)"), chartColors: [HEX.teal, HEX.teal, HEX.teal, HEX.coral],
-        dataLabelFormatCode: "+0.00;-0.00", catAxisOrientation: "maxMin", catAxisLabelPos: "low", objectName: "contribution chart" });
+      { x: MX, y: 1.45, w: 7.6, h: 5.2, barDir: "bar", ...chartStyle("Held-out PSNR change (dB)"), chartColors: [HEX.teal, HEX.teal, HEX.teal, HEX.slate],
+        dataLabelFormatCode: "+0.00;-0.00", catAxisOrientation: "maxMin", catAxisLabelPos: "low", valAxisMinVal: 0, objectName: "contribution chart" });
     const x0 = 8.7, cw = W - MX - x0;
     text(s, "SSIM change", { x: x0, y: 1.5, w: cw, h: 0.4, fontSize: 18, bold: true, color: C.text2 });
     items.forEach(([t, , ss], i) => {
@@ -483,34 +487,12 @@ Against CLAHE-only, the strongest classical baseline: ${psnrLevel ? `level on PS
       text(s, sgn(ss, 3), { x: x0 + 0.2, y, w: 1.3, h: 0.8, fontSize: 20, bold: true, color: ss >= 0 ? C.accent1 : C.accent2, valign: "middle" });
       text(s, t, { x: x0 + 1.5, y, w: cw - 1.6, h: 0.8, fontSize: 13, valign: "middle" });
     });
-    text(s, "Red compensation measured on the no-module baseline; modules vs. the equally tuned control; the original search vs. the predictor.",
+    text(s, "Red compensation measured on the no-module baseline; Modules 5 and 7 against the equally tuned control.",
       { x: x0, y: 5.95, w: cw, h: 0.8, fontSize: 12, italic: true, color: C.accent5 });
   }
   notes(s, "Manav", 1, `This breaks the result down by component, all on held-out images.
 Red-channel compensation: ${sgn(N.red.psnr.mean_diff)} dB. Module 7's predicted alpha: ${sgn(N.deltas.psnr["fusion_optimizer_alone (row4-row3)"])} dB. Per-type routing: ${sgn(N.deltas.psnr["routing_alone (row5-row3)"])} dB.
-The orange bar is the original version of Module 7, which picked alpha by maximising image-quality scores: ${sgn(-N.sig.hybrid_nr_search.psnr.d)} dB against the predictor. That leads to our main finding.`);
-
-  // 13 · Finding
-  s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
-  s.addText("Finding: no-reference scores mislead the optimiser", { placeholder: "title" });
-  {
-    const sel = N.selectors;
-    const items = [["Fixed α = 0.5", "fixed alpha=0.5", HEX.slate], ["Max UCIQE+UIQM", "argmax nr_combined", HEX.coral], ["Max UCIQE", "argmax uciqe", HEX.coral],
-                   ["Max UIQM", "argmax uiqm", HEX.coral], ["Max entropy", "argmax entropy", HEX.coral], ["Oracle (reference)", "oracle (argmax reference J)", HEX.teal]];
-    s.addChart(pres.ChartType.bar, [{ name: "PSNR", labels: items.map((i) => i[0]), values: items.map((i) => sel[i[1]].psnr) }],
-      { x: MX, y: 1.45, w: 7.4, h: 5.2, barDir: "bar", ...chartStyle("PSNR (dB) when α is chosen by each score · calibration split"), chartColors: items.map((i) => i[2]),
-        dataLabelFormatCode: "0.00", ...axis(items.map((i) => sel[i[1]].psnr)), catAxisOrientation: "maxMin", objectName: "selector chart" });
-    const x0 = 8.5, cw = W - MX - x0;
-    text(s, `${Math.round(100 * sel["argmax nr_combined"].boundary)}%`, { x: x0, y: 1.4, w: cw, h: 1.0, fontSize: 60, bold: true, color: C.accent2 });
-    text(s, "of images pushed to α = 0 or 1 by maximising UCIQE+UIQM: the scores reward extreme blends", { x: x0, y: 2.45, w: cw, h: 0.9, fontSize: 14 });
-    text(s, `${sgn(-N.sig.hybrid_nr_search.psnr.d)} dB`, { x: x0, y: 3.55, w: cw, h: 1.0, fontSize: 48, bold: true, color: C.accent2 });
-    text(s, "held-out PSNR of that search vs. our predictor (large effect)", { x: x0, y: 4.5, w: cw, h: 0.6, fontSize: 14 });
-    text(s, "Every score-maximising choice is worse than a fixed α. HE also tops UCIQE while losing on PSNR/SSIM. Lesson: check a quality score against references before optimising it.",
-      { x: x0, y: 5.25, w: cw, h: 1.5, fontSize: 13, italic: true, color: C.accent5 });
-  }
-  notes(s, "Manav", 1.5, `Our first Module 7 did what many papers do: choose the fusion weight that maximises the image's own UCIQE and UIQM — no reference needed.
-We found it backfires. These scores reward extreme blends, so the search pushed alpha to 0 or 1 for ${Math.round(100 * N.selectors["argmax nr_combined"].boundary)}% of images. Every score-maximising selector on this chart is worse than simply fixing alpha at 0.5, while the oracle shows what's possible.
-On held-out images the search costs ${f2(N.sig.hybrid_nr_search.psnr.d)} dB against our predictor. Conventional HE tells the same story: it tops UCIQE while losing on fidelity. The lesson: validate a no-reference score against references before you optimise it.`);
+Together, Modules 5 and 7 add ${sgn(N.deltas.psnr["combined_gain (row6-row3)"])} dB on top of an equally tuned pipeline.`);
 
   // 14 · Visual comparison
   s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
@@ -586,7 +568,7 @@ Third, ${edges.length ? `calibration chose the mildest values we searched (${lis
   {
     const items = [
       ["UCIQE on 8-bit Lab", "OpenCV's encoding made grey pixels read as chroma ≈181; now computed in true CIELAB."],
-      ["Mis-scaled optimiser", "The objective was ≈49 parts UCIQE to 0.2 UIQM; fixing it exposed the misalignment finding."],
+      ["Keypoint cap tied counts", "ORB stopped at 1,000 points, so raw and restored images hit the same ceiling; cap raised to 200,000."],
       ["White-balance cap unused", "The per-type gain cap was defined but never applied; now passed through."],
       ["Tuned on the test images", "Hand-set profiles were judged on the same images; now a held-out 30/70 split."],
       ["No multiple-comparison control", "25 raw p-values; now Holm correction, effect sizes and 95% CIs."],
@@ -603,7 +585,7 @@ Third, ${edges.length ? `calibration chose the mildest values we searched (${lis
     });
   }
   notes(s, "Manav", 1, `Before trusting any number, we audited the pipeline and the evaluation and found silent bugs — nothing crashed, the numbers were just wrong.
-The most important: UCIQE was computed on OpenCV's 8-bit Lab encoding, which made every grey pixel look highly coloured; and the original optimiser's objective was almost entirely one term. We also stopped tuning on the test images, added multiple-comparison correction, and found an inverted gamma convention — ${POST_GAMMA_FIX ? "after fixing it we re-ran the whole calibration and evaluation" : "it is fixed in the code, and the calibration and evaluation are being re-run with the fix; the numbers shown predate it"}.
+The most important: UCIQE was computed on OpenCV's 8-bit Lab encoding, which made every grey pixel look highly coloured; and a 1,000-point ORB cap made raw and restored keypoint counts tie. We also stopped tuning on the test images, added multiple-comparison correction, and found an inverted gamma convention — ${POST_GAMMA_FIX ? "after fixing it we re-ran the whole calibration and evaluation" : "it is fixed in the code, and the calibration and evaluation are being re-run with the fix; the numbers shown predate it"}.
 Every fix is documented in the results report with before-and-after evidence.`);
 
   // ===================== Demo & close =====================
@@ -643,8 +625,8 @@ Follow the six steps on the slide; keep it to about four minutes. If the app fai
   {
     const items = [
       ["MdWaterDrop", `Red-channel compensation before white balance is the largest single gain: ${sgn(N.red.psnr.mean_diff)} dB PSNR on held-out images.`],
-      ["MdVerified", `The full hybrid has the highest SSIM of all compared methods (${f3(M.hybrid_full.ssim)}), ${psnrLevel ? "matches CLAHE-only on PSNR" : sgn(cp.d) + " dB PSNR vs CLAHE-only"}, and clearly beats HE and UDCP on ${N.n_test} held-out images.`],
-      ["MdAutoGraph", "Optimising no-reference scores hurts fidelity: calibrate against references and report results on held-out data."],
+      ["MdVerified", `The full hybrid has the highest SSIM of all compared methods (${f3(M.hybrid_full.ssim)}), ${psnrLevel ? "matches CLAHE-only on PSNR" : sgn(cp.d) + " dB PSNR vs CLAHE-only"}, and clearly beats ${listJoin(ahead.map((c) => names[c]))} on ${N.n_test} held-out images.`],
+      ["MdAutoGraph", `A calibrated per-image fusion weight adds ${sgn(N.deltas.psnr["fusion_optimizer_alone (row4-row3)"])} dB; every parameter was tuned on ${N.n_cal} images and every claim tested on the other ${N.n_test}.`],
     ];
     items.forEach(([ic, t], i) => {
       const y = 1.75 + i * 1.35;

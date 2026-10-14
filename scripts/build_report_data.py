@@ -21,10 +21,11 @@ Produces (all under outputs/):
   ablation_summary.csv        the 6-row Task 3 table with subtraction-
                                derived Module 5 / Module 7 contributions
 
-Seven "methods" compared throughout:
+Methods compared throughout:
   0. udcp                  - external baseline (Drews et al. 2013), batch_metrics.csv's udcp_* cols
   1. conventional_he      - external baseline, from batch_metrics.csv's he_* cols
   2. clahe_only            - external baseline, from batch_metrics.csv's clahe_* cols
+  2b. wb_clahe             - external baseline: gray-world WB + CLAHE on L* (wbclahe_* cols)
   3. hybrid_neither        - routing OFF, fixed alpha=0.5     (ablation_neither.csv)
   4. hybrid_fusionopt_only - routing OFF, predicted alpha     (ablation_no_routing.csv)
   5. hybrid_routing_only   - routing ON,  fixed alpha=0.5     (ablation_fixed_alpha.csv)
@@ -56,6 +57,7 @@ BOOTSTRAP_SEED = 0
 
 METHOD_SOURCES = {
     "udcp": ("batch_metrics.csv", "udcp"),
+    "wb_clahe": ("batch_metrics.csv", "wbclahe"),
     "conventional_he": ("batch_metrics.csv", "he"),
     "clahe_only": ("batch_metrics.csv", "clahe"),
     "hybrid_neither": ("ablation_neither.csv", "hybrid"),
@@ -70,6 +72,7 @@ ABLATION_ROWS = [
     ("udcp", "0. UDCP baseline (Drews et al. 2013)"),
     ("conventional_he", "1. Conventional HE baseline"),
     ("clahe_only", "2. CLAHE-only baseline"),
+    ("wb_clahe", "2b. Gray-world WB + CLAHE baseline (common practitioner recipe)"),
     ("hybrid_neither", "3. Hybrid - global profile, fixed alpha=0.5 (neither novel module)"),
     ("hybrid_fusionopt_only", "4. Hybrid - global profile, predicted alpha (Module 7 only)"),
     ("hybrid_routing_only", "5. Hybrid - routed profile, fixed alpha=0.5 (Module 5 only)"),
