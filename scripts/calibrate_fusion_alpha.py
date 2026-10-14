@@ -126,31 +126,28 @@ def nr_alignment(sweep):
     return corr, pd.DataFrame(sel_rows)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Fit Module 7's fusion-alpha predictor on the calibration split")
-    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
-    parser.add_argument("--out-dir", type=str, default="outputs")
-    args = parser.parse_args()
+def run(workers, out_dir="outputs"):
+    """Stage 3 end to end: alpha sweep, NR-metric alignment study, ridge model -> modules/fusion_alpha_model.json."""
 
-    split_df = pd.read_csv(os.path.join(args.out_dir, "eval_split.csv"))
-    with open(os.path.join(args.out_dir, "routing_calibration_selected.json")) as f:
+    split_df = pd.read_csv(os.path.join(out_dir, "eval_split.csv"))
+    with open(os.path.join(out_dir, "routing_calibration_selected.json")) as f:
         rr = json.load(f)
     cal_names = set(split_df.loc[split_df["split"] == "calibration", "filename"])
     jobs = [p for p in list_pairs() if p[0] in cal_names]
 
     rows = []
-    with Pool(args.workers) as pool:
+    with Pool(workers) as pool:
         for i, res in enumerate(pool.imap_unordered(_sweep_one, jobs), start=1):
             rows += res
             if i % 40 == 0 or i == len(jobs):
                 print(f"[{i}/{len(jobs)}] calibration images swept", flush=True)
     sweep = pd.DataFrame(rows)
     sweep["J"] = sweep["psnr"] / rr["sd_psnr"] + sweep["ssim"] / rr["sd_ssim"]
-    sweep.to_csv(os.path.join(args.out_dir, "fusion_alpha_sweep_calibration.csv"), index=False)
+    sweep.to_csv(os.path.join(out_dir, "fusion_alpha_sweep_calibration.csv"), index=False)
 
     corr, selectors = nr_alignment(sweep)
-    corr.to_csv(os.path.join(args.out_dir, "nr_metric_alpha_alignment.csv"), index=False)
-    selectors.to_csv(os.path.join(args.out_dir, "nr_metric_alpha_selectors.csv"), index=False)
+    corr.to_csv(os.path.join(out_dir, "nr_metric_alpha_alignment.csv"), index=False)
+    selectors.to_csv(os.path.join(out_dir, "nr_metric_alpha_selectors.csv"), index=False)
     print(corr.round(3).to_string(index=False))
     print(selectors.round(3).to_string(index=False))
 
@@ -211,9 +208,18 @@ def main():
         "oracle": {m: float(per[m].mean()) for m in ["J", "psnr", "ssim"]},
         "top_standardized_weights": {k: float(v) for k, v in top},
     }
-    with open(os.path.join(args.out_dir, "fusion_alpha_calibration.json"), "w") as f:
+    with open(os.path.join(out_dir, "fusion_alpha_calibration.json"), "w") as f:
         json.dump(report, f, indent=2)
     print(json.dumps(report, indent=2))
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fit Module 7's fusion-alpha predictor on the calibration split")
+    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    parser.add_argument("--out-dir", type=str, default="outputs")
+    args = parser.parse_args()
+    run(args.workers, args.out_dir)
 
 
 if __name__ == "__main__":

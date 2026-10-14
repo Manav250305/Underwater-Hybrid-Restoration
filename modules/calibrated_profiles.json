@@ -1,0 +1,40 @@
+{
+  "note": "written by scripts/calibrate_red_compensation.py (stage 2)",
+  "global": {
+    "red_comp_strength": 0.75,
+    "wb_gain_cap": 1.5,
+    "gamma_strength": 1.05,
+    "clahe_clip_scale": 0.6,
+    "dcp_omega": 0.5
+  },
+  "types": {
+    "clear_blue": {
+      "red_comp_strength": 0.75,
+      "wb_gain_cap": 1.5,
+      "gamma_strength": 1.05,
+      "clahe_clip_scale": 0.6,
+      "dcp_omega": 0.5
+    },
+    "green_turbid": {
+      "red_comp_strength": 0.75,
+      "wb_gain_cap": 1.5,
+      "gamma_strength": 1.05,
+      "clahe_clip_scale": 0.6,
+      "dcp_omega": 0.5
+    },
+    "deep_lowlight": {
+      "red_comp_strength": 0.75,
+      "wb_gain_cap": 1.5,
+      "gamma_strength": 1.05,
+      "clahe_clip_scale": 0.6,
+      "dcp_omega": 0.5
+    },
+    "hazy_bright": {
+      "red_comp_strength": 0.75,
+      "wb_gain_cap": 1.5,
+      "gamma_strength": 1.2,
+      "clahe_clip_scale": 1.0,
+      "dcp_omega": 0.6
+    }
+  }
+}

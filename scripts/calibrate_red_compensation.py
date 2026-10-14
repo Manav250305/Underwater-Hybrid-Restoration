@@ -3,8 +3,10 @@ calibrate_red_compensation.py — Calibrate Module 5's red-channel compensation
 strength (modules/white_balance.compensate_red_channel) per water type, on
 the same calibration split as calibrate_routing.py.
 
-Coordinate-wise second stage: the other profile parameters stay at the
-values calibrate_routing.py selected; only red_comp_strength is searched.
+Second stage: the other profile parameters stay at the values stage 1
+(calibrate_routing.py) wrote to modules/calibrated_profiles.json; only
+red_comp_strength is searched. scripts/calibrate_all.py alternates the two
+stages until the selection stops changing.
 
   - GLOBAL strength: best mean J over all calibration images, run with the
     global profile (routing OFF arm).
@@ -19,6 +21,7 @@ fixed fusion alpha = 0.5.
 Writes:
   outputs/red_comp_calibration_grid.csv
   outputs/red_comp_calibration_selected.json
+  modules/calibrated_profiles.json          selected strengths written into the live profiles
 
 Usage:
     python scripts/calibrate_red_compensation.py --workers 8
@@ -41,7 +44,7 @@ from scipy.stats import wilcoxon
 
 from modules.dataset_loader import list_pairs
 from modules.metrics import compute_psnr, compute_ssim_fast
-from modules.water_type_classifier import WATER_TYPES
+from modules.water_type_classifier import WATER_TYPES, load_calibrated_profiles, save_calibrated_profiles
 from modules.pipeline import restore_image
 
 STRENGTHS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
@@ -63,14 +66,10 @@ def _grid_one(job):
     return rows
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Calibrate red-channel compensation strength per water type")
-    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
-    parser.add_argument("--out-dir", type=str, default="outputs")
-    args = parser.parse_args()
-
-    split_df = pd.read_csv(os.path.join(args.out_dir, "eval_split.csv"))
-    with open(os.path.join(args.out_dir, "routing_calibration_selected.json")) as f:
+def run(workers, out_dir="outputs"):
+    """Stage 2 end to end; returns the report and writes the selected strengths into modules/calibrated_profiles.json."""
+    split_df = pd.read_csv(os.path.join(out_dir, "eval_split.csv"))
+    with open(os.path.join(out_dir, "routing_calibration_selected.json")) as f:
         routing_report = json.load(f)
     sd_psnr, sd_ssim = routing_report["sd_psnr"], routing_report["sd_ssim"]
 
@@ -78,14 +77,14 @@ def main():
     cal_names = set(cal["filename"])
     jobs = [p for p in list_pairs() if p[0] in cal_names]
     rows = []
-    with Pool(args.workers) as pool:
+    with Pool(workers) as pool:
         for i, res in enumerate(pool.imap_unordered(_grid_one, jobs), start=1):
             rows += res
             if i % 40 == 0 or i == len(jobs):
                 print(f"[{i}/{len(jobs)}] calibration images done", flush=True)
     grid = pd.DataFrame(rows).merge(cal[["filename", "water_type"]], on="filename")
     grid["J"] = grid["psnr"] / sd_psnr + grid["ssim"] / sd_ssim
-    grid.to_csv(os.path.join(args.out_dir, "red_comp_calibration_grid.csv"), index=False)
+    grid.to_csv(os.path.join(out_dir, "red_comp_calibration_grid.csv"), index=False)
 
     def by_strength(df):
         return df.groupby("strength")[["J", "psnr", "ssim"]].mean()
@@ -119,8 +118,22 @@ def main():
             "selected": "per-type" if keep else "fallback-to-global",
             "means_by_strength": {str(k): v for k, v in means.round(4).to_dict(orient="index").items()},
         }
-    with open(os.path.join(args.out_dir, "red_comp_calibration_selected.json"), "w") as f:
+    with open(os.path.join(out_dir, "red_comp_calibration_selected.json"), "w") as f:
         json.dump(report, f, indent=2)
+
+    cur_global, cur_types = load_calibrated_profiles()
+    new_global = {**cur_global, "red_comp_strength": global_s}
+    new_types = {wt: {**cur_types[wt], "red_comp_strength": report["types"][wt]["selected_strength"]} for wt in WATER_TYPES}
+    save_calibrated_profiles(new_global, new_types, "written by scripts/calibrate_red_compensation.py (stage 2)")
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Calibrate red-channel compensation strength per water type")
+    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
+    parser.add_argument("--out-dir", type=str, default="outputs")
+    args = parser.parse_args()
+    report = run(args.workers, args.out_dir)
     print(json.dumps({k: v for k, v in report.items() if k != "global_arm_means"}, indent=2)[:4000])
 
 

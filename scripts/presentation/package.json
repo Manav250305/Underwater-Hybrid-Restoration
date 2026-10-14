@@ -1,0 +1,13 @@
+{
+  "name": "review-deck",
+  "private": true,
+  "description": "Builds docs/Review_II_Presentation.pptx (see README.md)",
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "jszip": "^3.10.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-icons": "^5.7.0",
+    "sharp": "^0.35.5"
+  }
+}

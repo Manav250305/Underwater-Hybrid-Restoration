@@ -11,6 +11,10 @@ dehazed stream. Every stage is adapted to the type of water detected in the
 image, and every parameter was calibrated on one part of the UIEB dataset
 and evaluated on a separate, held-out part.
 
+**Documentation:** [docs/](docs/) has a [code guide](docs/CODE_GUIDE.md), a
+[presentation guide](docs/PRESENTATION_GUIDE.md) and the
+[review deck](docs/Review_II_Presentation.pptx).
+
 **Results at a glance** (622 held-out UIEB test images; full tables in [Section 7](#7-evaluation-results)):
 
 | Method | PSNR (dB) ↑ | SSIM ↑ |
@@ -18,11 +22,11 @@ and evaluated on a separate, held-out part.
 | UDCP (physics-based dehazing) | 12.99 | 0.656 |
 | Conventional histogram equalisation | 16.36 | 0.781 |
 | CLAHE-only | **18.32** | 0.840 |
-| **Proposed hybrid** | 17.87 | **0.854** |
+| **Proposed hybrid** | **18.27** | **0.871** |
 
-The proposed hybrid has the highest SSIM of all methods and clearly beats HE
-and UDCP. It trails CLAHE-only by 0.45 dB PSNR (a small effect; see
-[Section 1.6](#16-what-each-part-contributes)).
+The proposed hybrid has the highest SSIM of all methods, matches CLAHE-only on
+PSNR (−0.04 dB: negligible and not significant), and clearly beats HE
+(+1.91 dB) and UDCP (+5.29 dB). See [Section 1.6](#16-what-each-part-contributes).
 
 ![Demo](outputs/demo.gif)
 
@@ -125,18 +129,20 @@ The rules are checked in order:
 - `clahe_clip_scale`: Step 4a
 - `dcp_omega`: Step 4b
 
-All five were calibrated on the calibration split (Section 1.4):
+All five were calibrated on the calibration split (Section 1.4). The live values
+are in [modules/calibrated_profiles.json](modules/calibrated_profiles.json):
 
 | Profile | red strength *s* | WB gain cap | gamma × | CLAHE clip × | DCP ω | Used by |
 |---|---|---|---|---|---|---|
-| **Global** (routing off) | 0.75 | 2.0 | 1.4 | 1.0 | 0.70 | green_turbid, hazy_bright (fell back) |
-| **clear_blue** | 0.75 | 2.0 | 1.4 | **0.8** | 0.70 | 72% of UIEB |
-| **deep_lowlight** | **4.0** | 2.0 | 1.4 | **1.3** | 0.70 | darkest images |
+| **Global** (routing off) | 0.75 | 1.5 | 1.05 | 0.6 | 0.5 | clear_blue, green_turbid, deep_lowlight (fell back) |
+| **hazy_bright** | 0.75 | 1.5 | **1.2** | **1.0** | **0.6** | well-lit, hazy images |
 
 A type keeps its own profile only if it beat the global profile on its
 calibration images with statistical significance (one-sided paired Wilcoxon,
 p < 0.05). Otherwise it falls back to the global profile, which happened for
-*green_turbid* and *hazy_bright*.
+every type except *hazy_bright* (+0.36 dB PSNR from its own profile on its 35
+test images). Overall, routing adds only +0.02 dB: after equal tuning, one
+good global profile does almost as well as four.
 
 **Example.** Luminance 0.50, saturation 0.34, haze 0.39, green dominance 1.0
 match no special rule, so the image is classified **clear_blue**.
@@ -165,14 +171,13 @@ R' = R + s · (mean(G) − mean(R)) · (1 − R) · G
 - `(1 − R)` leaves pixels that are already red almost untouched.
 - `s` is the routed strength. *s* = 0 turns the step off.
 
-**Parameters.** *s* = 0.75 for most images and **4.0 for deep_lowlight**. Deep,
-dark images both lose the most red and have small channel means, so they need
-a larger multiplier. The calibrated values follow the physics: the best strength is highest
-for deep water and near zero for bright hazy water, which fell back to the
-global 0.75 because its own optimum wasn't significantly better (Section 1.4).
+**Parameters.** *s* = **0.75** for every image. The strength was searched per
+water type (best values: 0.75 for clear blue and green turbid, 0.5 for deep
+low-light, 0 for hazy bright), but no type beat the single global strength
+significantly, so all fall back to it (Section 1.4).
 
-**Effect on its own** (held-out test set): **+0.68 dB PSNR** [95% CI 0.54–0.81]
-and **+0.021 SSIM** [0.017–0.025]. This is the largest single improvement in
+**Effect on its own** (held-out test set): **+0.52 dB PSNR** [95% CI 0.41–0.63]
+and **+0.024 SSIM** [0.020–0.029]. This is the largest single improvement in
 the project.
 
 ---
@@ -194,9 +199,9 @@ simple and robust correction.
    where `mean_gray` is the average of the three channel means.
 3. Clamp each gain to `[1 / cap, cap]` and multiply the channel by it.
 
-**Parameters.** Gain cap = **2.0** for every profile after calibration. A
-channel can at most be doubled or halved, which prevents a near-empty channel
-from being blown up into noise.
+**Parameters.** Gain cap = **1.5** for every profile after calibration, so a
+channel can be scaled by at most 1.5× either way. This keeps a near-empty
+channel from being blown up into noise, and it is the mildest cap searched.
 
 ---
 
@@ -211,23 +216,22 @@ while keeping black and white fixed.
 **How.**
 ```
 μ, σ = mean and std of the grayscale image (0–1)
-γ₀   = log(0.5) / log(μ)
+γ₀   = log(0.5) / log(μ)                         # moves mean brightness toward mid-grey
 cf   = 1 + 2 · (0.25 − min(σ, 0.25))             # low contrast → stronger correction
 γ    = γ₀ · cf if μ < 0.5 else γ₀ / cf
-γ    = clip(γ · gamma_strength, 0.4, 2.2)        # gamma_strength = 1.4 (calibrated)
-out  = 255 · (in / 255) ^ (1 / γ)                # γ > 1 brightens, γ < 1 darkens
+γ    = clip(γ · gamma_strength, 0.4, 2.2)        # gamma_strength from the routed profile
+out  = 255 · (in / 255) ^ γ                      # γ < 1 brightens, γ > 1 darkens
 ```
 
-**Example.** γ = 1.52, which brightens the image.
+**Parameters.** `gamma_strength` = 1.05 (global) and 1.2 for hazy bright.
 
-> **Known issue (not fixed in the reported results).** The formula for γ₀
-> was written for the convention `out = in^γ`, but it is applied as
-> `out = in^(1/γ)`. The *adaptive* part therefore runs backwards: on its own
-> it would darken dark images. Calibration chose the largest multiplier in
-> its grid (×1.4), which compensates, and on a sample of 80 test images the
-> stage still brightens 96% of them. But darker water types are brightened
-> *less* than brighter ones. Fixing it means re-running all calibration and
-> evaluation (Section 8).
+**Example.** γ = 1.14. This image is already fairly bright (mean ≈ 0.5), so
+the curve darkens it slightly.
+
+> **Fixed bug.** Earlier code applied `out = in^(1/γ)` while γ₀ was derived
+> for `out = in^γ`, so the adaptive part ran backwards: darker images were
+> brightened *less* than brighter ones. Fixing it and re-calibrating raised the
+> full hybrid from 17.87 dB / 0.854 to 18.27 dB / 0.871 on the test images.
 
 ---
 
@@ -251,10 +255,10 @@ time. Equalising tile by tile can.
 3. Scale by the profile's `clahe_clip_scale`, limit to [1, 6], and apply
    CLAHE on 8 × 8 tiles.
 
-**Parameters.** Clip multiplier 1.0 (global), **0.8 for clear_blue** (gentler,
-which gains about +0.006 SSIM on held-out images) and **1.3 for deep_lowlight**.
+**Parameters.** Clip multiplier **0.6** (global, the gentlest value searched)
+and 1.0 for hazy bright.
 
-**Example.** Clip limit 2.73. The CLAHE stream shows the most texture, but it
+**Example.** Clip limit 1.99. The CLAHE stream shows the most texture, but it
 also looks greyish and noisy on its own, which is why it is fused rather than
 used directly.
 
@@ -284,9 +288,9 @@ Contrast enhancement alone can't remove it; a physical model of the haze can.
 5. **Recovery.** `J = (I − A) / max(t, 0.1) + A`. The floor of 0.1 avoids
    amplifying noise in very hazy regions.
 
-**Parameters.** ω = **0.70** for every profile after calibration. That is the
-gentlest value in the search grid, so calibration consistently preferred less
-dehazing than classic DCP's ω ≈ 0.95 when scored against the UIEB references.
+**Parameters.** ω = **0.5** (global) and 0.6 for hazy bright. 0.5 is the
+gentlest value searched: scored against the UIEB references, calibration
+consistently preferred much less dehazing than classic DCP's ω ≈ 0.95.
 
 **Example.** The dehazed stream has the strongest colour and depth but is
 darker and more saturated than the reference.
@@ -302,7 +306,7 @@ versus the dehazed stream *for this specific image*, as a single number
 
 **Why.** Hazy images benefit from more of the dehazed stream; clear but dull
 images from more CLAHE. A fixed α compromises. If each image could get its
-own best α, PSNR on the calibration split would rise from 17.27 to 18.03 dB.
+own best α, PSNR on the calibration split would rise from 17.94 to 18.58 dB.
 
 **How.** A ridge regression (λ = 30, chosen by 5-fold cross-validation)
 predicts α from **26 no-reference statistics**:
@@ -329,21 +333,21 @@ The most influential features:
 **Why not optimise an image-quality score instead?** The first version of
 Module 7 searched for the α that maximised UCIQE+UIQM, two popular
 no-reference underwater quality scores. On UIEB this backfired:
-- the scores reward extreme blends, so the search put α at 0 or 1 for 91% of
+- the scores reward extreme blends, so the search put α at 0 or 1 for 87% of
   images
-- held-out PSNR fell by about 1.5 dB
+- on held-out images it scores 0.77 dB PSNR below the predictor
 
 This *misalignment between no-reference scores and fidelity* is a finding of
 the project (results docx, Section 7). The original search is kept in
 [modules/fusion_optimizer.py](modules/fusion_optimizer.py) for that
 comparison.
 
-**Effect on its own** (held-out test set): +0.14 dB PSNR, +0.006 SSIM over a
-fixed α = 0.5. The gain is real but modest; the predictor captures about 22%
-of the per-image headroom.
+**Effect on its own** (held-out test set): +0.16 dB PSNR, +0.003 SSIM over a
+fixed α = 0.5. The gain is real but modest. On the calibration split a
+per-image oracle α would reach 18.58 dB against 17.94 for a fixed α, and the
+predictor (18.05) captures about 17% of that headroom.
 
-**Example.** Predicted α = 0.37, so the result leans moderately toward the
-dehazed stream.
+**Example.** Predicted α = 0.49, a roughly even blend of the two streams.
 
 ---
 
@@ -375,7 +379,7 @@ strengths, and a hard per-pixel switch would create seams.
 
 **Example.** The fused result combines CLAHE's texture with the dehazed
 stream's colour and depth, and comes closest to the UIEB reference
-(SSIM 0.889 vs. 0.831 for CLAHE-only on this image).
+(SSIM 0.875 vs. 0.831 for CLAHE-only on this image).
 
 ---
 
@@ -390,13 +394,21 @@ avoid that:
    Every result in this README and in the report is on the test split.
 2. **Objective.** Settings are scored against the UIEB references by
    `J = PSNR / sd(PSNR) + SSIM / sd(SSIM)`, which weights both metrics equally.
-3. **Three calibration stages**, all on the calibration split only:
+3. **Three calibration stages**, all on the calibration split only, run
+   together by [scripts/calibrate_all.py](scripts/calibrate_all.py):
 
 | Stage | Script | What it chooses |
 |---|---|---|
-| 1 | [scripts/calibrate_routing.py](scripts/calibrate_routing.py) | WB cap, gamma ×, CLAHE clip ×, DCP ω: a grid of 182 settings, for one global profile and one per water type |
+| 1 | [scripts/calibrate_routing.py](scripts/calibrate_routing.py) | WB cap, gamma ×, CLAHE clip ×, DCP ω from a grid, for one global profile and one per water type (with red compensation applied at each arm's current strength) |
 | 2 | [scripts/calibrate_red_compensation.py](scripts/calibrate_red_compensation.py) | Red-compensation strength *s* ∈ {0 … 5}, globally and per water type |
 | 3 | [scripts/calibrate_fusion_alpha.py](scripts/calibrate_fusion_alpha.py) | The Module 7 ridge model (written to `modules/fusion_alpha_model.json`) |
+
+   Stages 1 and 2 depend on each other, so `calibrate_all.py` alternates them
+   until the selected profiles stop changing (at most 3 rounds), then fits
+   stage 3. Selected profiles are written to `modules/calibrated_profiles.json`,
+   which the pipeline loads at start-up, so no values are copied by hand.
+   In the reported run a further pass of both stages left the profiles
+   unchanged, so they had converged.
 
 4. **Fair comparison.** "Routing off" uses a global profile tuned with the
    *same* grid, data and objective, so the ablation compares per-type tuning
@@ -437,25 +449,25 @@ Held-out test set, 622 images:
 
 | Component | PSNR | SSIM | Evidence |
 |---|---|---|---|
-| Red-channel compensation (in every hybrid row) | **+0.68 dB** | **+0.021** | `outputs/red_comp_effect.csv` |
-| Module 7: predicted α vs. fixed α = 0.5 | +0.14 dB | +0.006 | ablation row 4 − row 3 |
-| Module 5: per-type routing vs. one equally tuned profile | +0.08 dB | +0.005 | ablation row 5 − row 3 |
-| Modules 5 + 7 together | +0.18 dB | +0.009 | ablation row 6 − row 3 |
-| Original Module 7 (UCIQE+UIQM search) instead of the predictor | −1.56 dB | −0.050 | ablation row 7 vs. row 6 |
+| Red-channel compensation (in every hybrid row) | **+0.52 dB** | **+0.024** | `outputs/red_comp_effect.csv` |
+| Module 7: predicted α vs. fixed α = 0.5 | +0.16 dB | +0.003 | ablation row 4 − row 3 |
+| Module 5: per-type routing vs. one equally tuned profile | +0.02 dB | +0.002 | ablation row 5 − row 3 |
+| Modules 5 + 7 together | +0.18 dB | +0.004 | ablation row 6 − row 3 |
+| Original Module 7 (UCIQE+UIQM search) instead of the predictor | −0.77 dB | −0.024 | ablation row 7 vs. row 6 |
 
 Compared with the baselines:
-- **Proposed hybrid vs. HE:** +1.50 dB, +0.073 SSIM
-- **Proposed hybrid vs. UDCP:** +4.88 dB, +0.198 SSIM
-- **Proposed hybrid vs. CLAHE-only:** −0.45 dB PSNR (small effect), +0.014 SSIM
+- **Proposed hybrid vs. HE:** +1.91 dB, +0.091 SSIM
+- **Proposed hybrid vs. UDCP:** +5.29 dB, +0.216 SSIM
+- **Proposed hybrid vs. CLAHE-only:** −0.04 dB PSNR (negligible, not significant), +0.032 SSIM (medium effect)
 
-The dehazed stream darkens more than the moderate UIEB references, which PSNR
-penalises more than SSIM. The full statistics are in the report.
+CLAHE-only still scores higher PSNR on 45% of individual test images. The
+full statistics are in the report.
 
 ## 2. Novel Contributions
 
 | # | Contribution | File | What it adds |
 |---|---|---|---|
-| 1 | **Water-type-aware routing with red-channel compensation** | `modules/water_type_classifier.py`, `modules/white_balance.py` | Classifies the water type and routes how strongly each stage acts, including attenuation-aware red compensation (strongest for deep water). Calibrated on a held-out split against an equally tuned single profile. |
+| 1 | **Water-type-aware routing with red-channel compensation** | `modules/water_type_classifier.py`, `modules/white_balance.py` | Classifies the water type and routes how strongly each stage acts, including attenuation-aware red compensation. Calibrated on a held-out split against an equally tuned single profile; after equal tuning only hazy bright keeps its own profile, so most of the gain comes from the compensation itself. |
 | 2 | **Calibrated per-image fusion weight** | `modules/fusion_alpha_predictor.py` | Predicts the CLAHE/dehazing blend α per image from 26 no-reference statistics. It replaces a UCIQE+UIQM search, after the project showed that those scores are misaligned with fidelity. |
 | 3 | **Downstream task validation** | `modules/downstream_validation.py` | Measures ORB keypoints, matches and edge density, to test whether restoration helps computer-vision tasks rather than just looking better. |
 
@@ -480,6 +492,7 @@ underwater_restoration/
 │   ├── dehazing.py                  # Module 4  underwater dark channel prior + guided filter
 │   ├── water_type_classifier.py     # Module 5  ★ water-type classification + calibrated profiles
 │   ├── fusion.py                    # Module 6  weight maps + Laplacian-pyramid fusion
+│   ├── calibrated_profiles.json     #           calibrated profiles (written by scripts/calibrate_all.py)
 │   ├── fusion_alpha_predictor.py    # Module 7  ★ per-image fusion-weight predictor
 │   ├── fusion_alpha_model.json      #           its fitted ridge model
 │   ├── fusion_optimizer.py          #           original Module 7 (UCIQE+UIQM search), kept for comparison
@@ -488,6 +501,7 @@ underwater_restoration/
 │   └── dataset_loader.py            # resolves UIEB paths (local data/ or external drive)
 ├── scripts/
 │   ├── restore.py                   # restore a single image from the command line
+│   ├── calibrate_all.py             # runs the whole calibration (alternates stages 1–2, then 3)
 │   ├── calibrate_routing.py         # calibration stage 1 (profile multipliers)
 │   ├── calibrate_red_compensation.py# calibration stage 2 (red-compensation strength)
 │   ├── calibrate_fusion_alpha.py    # calibration stage 3 (Module 7 predictor) + NR-metric study
@@ -496,7 +510,9 @@ underwater_restoration/
 │   ├── build_report_data.py         # CSVs -> summary / significance / ablation tables
 │   ├── build_results_docx.py        # tables -> outputs/Review_II_Results_Section.docx
 │   ├── investigate_fusion_alpha.py  # diagnostic: shape of the UCIQE+UIQM(α) curve
-│   └── make_method_figure.py        # the stage-by-stage figure in Section 1.2
+│   ├── make_method_figure.py        # the stage-by-stage figure in Section 1.2
+│   └── presentation/                # rebuilds the review deck + presentation guide (build.sh)
+├── docs/                            # code guide, presentation guide, review deck
 ├── data/                            # UIEB raw/, reference/, challenging/ (not in git)
 └── outputs/                         # result CSVs, calibration outputs, figures, report
 ```
@@ -551,14 +567,12 @@ python scripts/restore.py --input data/raw/794_img_.png --no-routing    # Module
 python scripts/restore.py --input data/raw/794_img_.png --no-fusion-opt # Module 7 off (alpha = 0.5)
 ```
 
-**Calibrate** (calibration split only). Copy the stage 1–2 results from
-`outputs/*_calibration_selected.json` into `TYPE_PROFILES` / `GLOBAL_PROFILE`
-in `modules/water_type_classifier.py`. Stage 3 writes its model file directly.
+**Calibrate** (calibration split only; about 1–2 hours on 8 cores). Writes
+`modules/calibrated_profiles.json` and `modules/fusion_alpha_model.json`:
 ```bash
-python scripts/calibrate_routing.py --workers 8
-python scripts/calibrate_red_compensation.py --workers 8
-python scripts/calibrate_fusion_alpha.py --workers 8
+python scripts/calibrate_all.py --workers 8
 ```
+The three stage scripts can also be run on their own.
 
 **Evaluate everything and rebuild the report** (all six configurations, about
 an hour on 8 cores):
@@ -571,6 +585,12 @@ Or run one configuration with `scripts/batch_evaluate.py`. The flags are
 `scripts/build_report_data.py` and `scripts/build_results_docx.py`.
 
 **Regenerate the stage figure:** `python scripts/make_method_figure.py [--image NAME]`.
+
+**Rebuild the review deck and presentation guide** from the current results
+(needs Node.js; installs its packages on first use):
+```bash
+./scripts/presentation/build.sh
+```
 
 ## 7. Evaluation Results
 
@@ -589,11 +609,11 @@ along with:
 | UDCP baseline (Drews et al. 2013) | 12.99 | 0.656 | 6.81 | 0.430 | 2.271 |
 | Conventional (global HE) baseline | 16.36 | 0.781 | 7.84 | 0.445 | 2.536 |
 | CLAHE-only baseline | 18.32 | 0.840 | 7.30 | 0.359 | 2.175 |
-| Hybrid — global profile, fixed α=0.5 (neither novel module) | 17.68 | 0.844 | 7.24 | 0.309 | 2.209 |
-| Hybrid — global profile, predicted α (Module 7 only) | 17.82 | 0.850 | 7.24 | 0.312 | 2.193 |
-| Hybrid — routed profile, fixed α=0.5 (Module 5 only) | 17.77 | 0.850 | 7.23 | 0.304 | 2.145 |
-| **Hybrid — full (Module 5 + Module 7)** | **17.87** | **0.854** | 7.22 | 0.308 | 2.134 |
-| Hybrid — routed profile, α by UCIQE+UIQM search (original Module 7) | 16.30 | 0.804 | 7.16 | 0.329 | 2.159 |
+| Hybrid — global profile, fixed α=0.5 (neither novel module) | 18.09 | 0.867 | 7.19 | 0.309 | 2.107 |
+| Hybrid — global profile, predicted α (Module 7 only) | 18.25 | 0.870 | 7.22 | 0.310 | 2.122 |
+| Hybrid — routed profile, fixed α=0.5 (Module 5 only) | 18.11 | 0.869 | 7.20 | 0.311 | 2.120 |
+| **Hybrid — full (Module 5 + Module 7)** | **18.27** | **0.871** | 7.24 | 0.312 | 2.136 |
+| Hybrid — routed profile, α by UCIQE+UIQM search (original Module 7) | 17.50 | 0.847 | 7.22 | 0.323 | 2.139 |
 
 Means over the 622 held-out test images. All parameters were calibrated on the
 other 268. HE and UDCP score higher on UCIQE/UIQM while losing on PSNR/SSIM:
@@ -606,14 +626,18 @@ All of these issues were silent: nothing crashed, the numbers were just
 wrong. They are recorded with evidence in Section 9 of the results docx.
 
 **Open:**
-- **Adaptive gamma convention** (`modules/gamma_correction.py`). γ is derived
-  for `out = in^γ` but applied as `out = in^(1/γ)`, so the adaptivity is
-  inverted (Section 1.3, Step 3). The calibrated ×1.4 multiplier hides most
-  of the effect. Fixing it requires re-running calibration and evaluation.
-- **Calibration limits.** The stages were tuned one after another rather
-  than jointly, and some stage-1 values sit on the edge of the grid.
+- **Calibration at the grid edge.** WB cap 1.5, CLAHE ×0.6 and ω 0.5 are the
+  mildest values searched, so the references prefer gentler processing than
+  the grid allowed. Calibration is also coordinate-wise (stages 1–2 alternated
+  to convergence) rather than one joint search.
+- **Routing captures little of the per-image headroom.** A per-image oracle
+  profile would add about 1.45 dB over the global profile; the four water
+  types capture +0.02 dB.
 
 **Fixed:**
+- **Adaptive gamma convention** (`modules/gamma_correction.py`). γ was derived
+  for `out = in^γ` but applied as `out = in^(1/γ)`, inverting the adaptivity.
+  Fixed and fully re-calibrated (Section 1.3, Step 3).
 - **UCIQE computed on OpenCV's 8-bit Lab encoding.** Neutral grey pixels
   looked like chroma ≈181 and contrast dominated the score (UCIQE ≈60–80). It
   is now computed in true CIELAB on a ~[0, 1] scale.
@@ -650,15 +674,3 @@ the open tab computes.
 - **Metrics** — entropy, UCIQE and UIQM per method, and a PSNR/SSIM table against the reference
 - **Downstream** — ORB keypoints, edge density and cross-matches, on demand
 - **About** — pipeline diagram and a "how each module works" explainer
-
-## 10. Next Steps
-
-1. **Fix the adaptive-gamma convention**, then re-run the three calibration
-   stages and `run_all_evaluations.sh`.
-2. **Calibrate jointly over a wider grid.** Stage-1 values sit on the grid
-   edge, so both arms may have room to improve.
-3. **Close more of the per-image headroom.** The per-image oracle is
-   +0.78 dB above the global profile for routing and +0.76 dB above a fixed α
-   for fusion. Richer features or local, region-wise α are natural next steps.
-4. **Fold `outputs/Review_II_Results_Section.docx` into the full Review II
-   report.**

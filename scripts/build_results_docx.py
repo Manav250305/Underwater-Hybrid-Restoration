@@ -1,8 +1,8 @@
 """
 build_results_docx.py — Task 4: assembles the Review II results section as
 a .docx, from the analysis tables produced by build_report_data.py and the
-three calibration reports (calibrate_routing.py,
-calibrate_red_compensation.py, calibrate_fusion_alpha.py).
+calibration reports written by scripts/calibrate_all.py (stages:
+calibrate_routing.py, calibrate_red_compensation.py, calibrate_fusion_alpha.py).
 
 Sections:
   0. Evaluation protocol (held-out split, calibration, metrics, statistics).
@@ -201,6 +201,21 @@ def _wins_losses(sig_df, comparator):
 
 
 def build_loss_discussion(doc, summary_df, sig_df):
+    cp = sig_df[(sig_df["comparison"] == "hybrid_full vs clahe_only") & (sig_df["metric"] == "psnr")].iloc[0]
+    cs = sig_df[(sig_df["comparison"] == "hybrid_full vs clahe_only") & (sig_df["metric"] == "ssim")].iloc[0]
+    if cp["effect_size"] == "negligible" or not cp["significant_holm_0.05"]:
+        clahe_sentence = (
+            f"Against CLAHE-only, the strongest baseline, the hybrid is level on PSNR (Δ {cp['mean_diff']:+.2f} dB, "
+            f"{cp['effect_size']}{'' if cp['significant_holm_0.05'] else ', not significant'}) and higher on SSIM "
+            f"(Δ {cs['mean_diff']:+.3f}, {cs['effect_size']} effect). CLAHE-only is a gentle local operator that stays "
+            "close to moderate references; the hybrid additionally dehazes and re-balances colour, which improves "
+            "structural similarity but can shift global intensity, the quantity PSNR penalizes most.")
+    else:
+        clahe_sentence = (
+            f"Against CLAHE-only, the strongest baseline, the hybrid differs by {cp['mean_diff']:+.2f} dB PSNR "
+            f"({cp['effect_size']} effect) and {cs['mean_diff']:+.3f} SSIM ({cs['effect_size']} effect). The DCP "
+            "stream dehazes more strongly than a moderate reference, which shifts global intensity: PSNR penalizes "
+            "that shift directly, while SSIM, which normalizes local luminance and contrast, penalizes it much less.")
     add_heading(doc, "3. Where the Proposed Method Wins and Loses, and Why", level=2)
     pm = summary_df.pivot(index="method", columns="metric", values="mean")
 
@@ -226,12 +241,7 @@ def build_loss_discussion(doc, summary_df, sig_df):
         "The UIEB references are not ground-truth clear-water images. Li et al. (2019) produced each "
         "one by having volunteers choose the preferred output among 12 existing enhancement methods. "
         "PSNR/SSIM therefore measure closeness to the output volunteers preferred, which is usually a "
-        "moderate correction. Against CLAHE-only, the strongest baseline, the hybrid preserves structure "
-        f"better (SSIM {g('hybrid_full','ssim') - g('clahe_only','ssim'):+.3f}) but is "
-        f"{g('clahe_only','psnr') - g('hybrid_full','psnr'):.2f} dB lower in PSNR. Its DCP stream dehazes "
-        "and darkens more strongly than a moderate reference, which shifts global intensity. PSNR "
-        "penalizes that shift directly, while SSIM, which normalizes local luminance and contrast, "
-        "penalizes it much less."
+        "moderate correction. " + clahe_sentence
     )
     doc.add_paragraph(
         "UCIQE/entropy vs. conventional HE. "
@@ -245,7 +255,7 @@ def build_loss_discussion(doc, summary_df, sig_df):
     )
 
 
-def build_module5_section(doc, watertype_df, calib, red, red_effect, out_dir):
+def build_module5_section(doc, watertype_df, calib, red, red_effect, out_dir, rounds_text="one round"):
     add_heading(doc, "4. Module 5 — Water-Type Routing with Red-Channel Compensation", level=2)
     doc.add_paragraph(
         "Water absorbs red light first, and how much is lost depends on depth and turbidity. Module 5 "
@@ -258,8 +268,8 @@ def build_module5_section(doc, watertype_df, calib, red, red_effect, out_dir):
     doc.add_paragraph(
         f"Stage 1 — profile multipliers. On the calibration split, {calib['n_candidate_settings']} settings "
         "of (WB gain cap, gamma multiplier, CLAHE clip multiplier, DCP ω) were scored at fixed α=0.5 by "
-        "J = PSNR/sd + SSIM/sd. One global profile (the routing-OFF arm) and one profile per water type "
-        "were selected. A per-type choice is kept only if it beats the global one on that type's "
+        "J = PSNR/sd + SSIM/sd, with red-channel compensation applied at each arm's current strength. "
+        "One global profile (the routing-OFF arm) and one profile per water type were selected. A per-type choice is kept only if it beats the global one on that type's "
         "calibration images (one-sided paired Wilcoxon, p<0.05); otherwise the type falls back to the "
         "global choice."
     )
@@ -285,7 +295,10 @@ def build_module5_section(doc, watertype_df, calib, red, red_effect, out_dir):
     gm = red["global_arm_means"]
     doc.add_paragraph(
         f"Stage 2 — red-compensation strength s ∈ {{{', '.join(f'{x:g}' for x in red['strengths_searched'])}}}, "
-        "searched with the stage-1 profiles fixed and the same gate. The global strength is "
+        "searched with the stage-1 profiles fixed and the same gate. "
+        + (f"Stages 1 and 2 were alternated until the selection stopped changing ({rounds_text}). "
+           if rounds_text != "a single pass" else "Stage 2 was run once, after stage 1. ")
+        + "The global strength is "
         f"s={gs:g}, which scores {gm[str(gs)]['psnr']:.2f} dB / {gm[str(gs)]['ssim']:.3f} on calibration "
         f"images, against {gm['0.0']['psnr']:.2f} dB / {gm['0.0']['ssim']:.3f} with no compensation."
     )
@@ -297,8 +310,12 @@ def build_module5_section(doc, watertype_df, calib, red, red_effect, out_dir):
                      f"{info['p_better_than_global']:.3g}", f"{info['selected_strength']:g}", info["selected"]])
     add_table(doc, ["Water type", "n (cal.)", "Best s", "PSNR: s=0 → best s", "p vs. global s",
                     "Selected s", "Decision"], rows)
-    add_note(doc, "The per-type best strength follows the physics of red attenuation: strongest for "
-                  "deep, low-light water, near zero for well-lit hazy water.")
+    kept = [wt for wt, info in red["types"].items() if info["selected"] == "per-type"]
+    best = ", ".join(f"{wt} {info['best_strength']:g}" for wt, info in red["types"].items())
+    add_note(doc, f"Best strength per water type on calibration images: {best}. "
+                  + (f"Only {', '.join(kept)} beat the global strength significantly." if kept else
+                     f"No type beat the global strength s = {red['global_strength']:g} significantly, so every "
+                     "image uses it: the compensation itself matters more than routing its strength."))
 
     if red_effect is not None:
         doc.add_paragraph()
@@ -518,7 +535,6 @@ def build_limitations(doc, items):
 
 def derive_facts(d, calib, alpha_cal, split_df, summary_df, watertype_df):
     """Every current-result number quoted in prose, derived from the output files (never typed in)."""
-    from calibrate_routing import GRID
     from modules.fusion_alpha_predictor import load_model
 
     pm = summary_df.pivot(index="method", columns="metric", values="mean")
@@ -530,6 +546,8 @@ def derive_facts(d, calib, alpha_cal, split_df, summary_df, watertype_df):
     }
 
     grid = pd.read_csv(os.path.join(d, "routing_calibration_grid.csv"))
+    if "red_comp_strength" in grid.columns and "red_strengths_used" in calib:  # each arm at its own red strength
+        grid = grid[np.isclose(grid["red_comp_strength"], calib["red_strengths_used"]["global"])]
     grid["J"] = grid["psnr"] / calib["sd_psnr"] + grid["ssim"] / calib["sd_ssim"]
     oracle = grid.loc[grid.groupby("filename")["J"].idxmax()].set_index("filename")["psnr"]
     glob = grid
@@ -544,10 +562,24 @@ def derive_facts(d, calib, alpha_cal, split_df, summary_df, watertype_df):
     facts["fallback_types"] = ", ".join(wt for wt, info in calib["types"].items() if info["selected"] != "per-type")
 
     names = {"wb_gain_cap": "WB cap", "gamma_strength": "gamma ×", "clahe_clip_scale": "CLAHE clip ×", "dcp_omega": "DCP ω"}
+    # Grid bounds come from the calibration grid that was actually searched (the CSV), not the script's constant
+    raw_grid = pd.read_csv(os.path.join(d, "routing_calibration_grid.csv"), usecols=list(names))
     edges = [f"{names[k]}{'' if names[k].endswith('×') else ' '}{v:g}"
-             for k, v in calib["global_profile"].items() if k in GRID and v in (min(GRID[k]), max(GRID[k]))]
+             for k, v in calib["global_profile"].items() if k in names and v in (raw_grid[k].min(), raw_grid[k].max())]
     facts["grid_edges"] = ", ".join(edges)
 
+    rounds_path = os.path.join(d, "calibration_rounds.json")
+    if os.path.exists(rounds_path):
+        with open(rounds_path) as f:
+            rr = json.load(f)
+        n = len(rr["rounds"])
+        facts["rounds_text"] = (("converged: a further pass of both stages left the profiles unchanged" if n == 1
+                                 else f"converged after {n} rounds") if rr["converged"]
+                                else f"stopped after the maximum of {n} rounds without fully converging")
+    else:
+        facts["rounds_text"] = "a single pass"
+    # Results produced by scripts/calibrate_all.py (which writes calibration_rounds.json) include the gamma fix
+    facts["post_gamma_fix"] = os.path.exists(rounds_path)
     sel = pd.read_csv(os.path.join(d, "nr_metric_alpha_selectors.csv")).set_index("selector")
     facts["nr_boundary_pct"] = 100 * float(sel.loc["argmax nr_combined", "frac_alpha_at_0_or_1"])
     return facts
@@ -652,24 +684,28 @@ def main():
             "Limitation",
         ),
         (
-            "Adaptive gamma formula uses the opposite convention from how it is applied",
-            "compute_adaptive_gamma derives γ = log(0.5)/log(mean) for the convention output = input^γ, where "
-            "γ < 1 brightens. adaptive_gamma_correction applies output = input^(1/γ) instead, so the adaptive "
-            "part is inverted: on its own it darkens dark images. Calibration selected the largest gamma "
-            "multiplier in its grid (×1.4), which largely compensates, and on a sample of 80 test images the "
-            "stage still brightened 96%. But the adaptivity remains backwards, with darker water types "
-            "brightened less than brighter ones, and the boundary-valued multiplier is a symptom of it. "
-            "Correcting the convention changes the pipeline, so it would require re-running all three "
-            "calibration stages and the evaluation. It is left unfixed in the reported results.",
-            "Found, Not Fixed",
+            "Adaptive gamma formula used the opposite convention from how it was applied",
+            "compute_adaptive_gamma derives γ = log(0.5)/log(mean) for the convention output = input^γ (γ < 1 "
+            "brightens), but adaptive_gamma_correction applied output = input^(1/γ). On its own that "
+            "darkened dark images, and darker water types were brightened less than brighter ones. The "
+            "earlier calibration had partly compensated by choosing the largest gamma multiplier in its grid. "
+            "adaptive_gamma_correction now applies output = input^γ"
+            + (", and all three calibration stages and the full evaluation were re-run. Every number in this "
+               "section is post-fix." if facts["post_gamma_fix"] else
+               ". The numbers in this section were produced before the fix; they will change once "
+               "scripts/calibrate_all.py and scripts/run_all_evaluations.sh are re-run."),
+            "Found & Fixed" if facts["post_gamma_fix"] else "Fixed in code, re-run pending",
         ),
         (
             "Coordinate-wise, grid-limited calibration",
-            "The calibration stages were run in sequence (profile, then red strength, then α predictor) "
-            "rather than jointly"
+            (f"Stages 1 and 2 are alternated until the selection stops changing ({facts['rounds_text']}): "
+             "a coordinate-wise search, not one joint search over all five parameters, with stage 3 fitted afterwards"
+             if facts["post_gamma_fix"] else
+             "These results come from a single coordinate-wise pass (stage 1, then stage 2, then stage 3) "
+             "rather than a joint search; scripts/calibrate_all.py now alternates stages 1 and 2 until they converge")
             + (f", and some selected global stage-1 values lie at the grid boundary ({facts['grid_edges']})"
                if facts["grid_edges"] else "")
-            + ". A joint search over a wider grid could improve both arms. Stages 1–2 were scored "
+            + ". Stages 1–2 are scored "
             "at fixed α=0.5 and so are not tuned jointly with Module 7.",
             "Limitation",
         ),
@@ -741,7 +777,7 @@ def main():
     doc.add_page_break()
     build_loss_discussion(doc, summary_df, sig_df)
     doc.add_page_break()
-    build_module5_section(doc, watertype_df, calib, red, red_effect, d)
+    build_module5_section(doc, watertype_df, calib, red, red_effect, d, facts["rounds_text"])
     doc.add_page_break()
     build_ablation_section(doc, ablation_table_df, ablation_deltas_df, n_test)
     doc.add_page_break()

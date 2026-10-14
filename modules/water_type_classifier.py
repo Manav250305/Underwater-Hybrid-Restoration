@@ -25,6 +25,9 @@ channel means, luminance, and dark-channel density — consistent with the
 project's "classical image-processing operators only" scope.
 """
 
+import json
+import os
+
 import cv2
 import numpy as np
 
@@ -47,33 +50,41 @@ HAND_SET_PROFILES = {
 # un-routed adaptive formula exactly (the pre-calibration routing-OFF arm).
 NEUTRAL_PROFILE = {"wb_gain_cap": 4.0, "gamma_strength": 1.0, "clahe_clip_scale": 1.0, "dcp_omega": 0.85, "red_comp_strength": 0.0}
 
-# Single profile applied to every image when routing is OFF (the Module 5
-# ablation arm), tuned by calibrate_routing.py on the calibration split with
-# the same grid/objective as the per-type profiles — so the ablation compares
-# per-type vs. one equally-tuned parameter set, not tuned vs. untuned.
-# Source: outputs/routing_calibration_selected.json ("global_profile"),
-# red_comp_strength from outputs/red_comp_calibration_selected.json.
-GLOBAL_PROFILE = {"wb_gain_cap": 2.0, "gamma_strength": 1.4, "clahe_clip_scale": 1.0, "dcp_omega": 0.70,
-                  "red_comp_strength": 0.75}
+PROFILE_KEYS = ["red_comp_strength", "wb_gain_cap", "gamma_strength", "clahe_clip_scale", "dcp_omega"]
+PROFILES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibrated_profiles.json")
 
-# Per-type profiles selected by calibrate_routing.py. These seed the adaptive
-# formulas in Modules 1-4 (acting as adjustment multipliers / overrides)
-# rather than replacing the adaptivity entirely. A type keeps its own profile
-# only if it beat GLOBAL_PROFILE on that type's calibration images (paired
-# one-sided Wilcoxon, p < 0.05); green_turbid and hazy_bright did not, so they
-# fall back to GLOBAL_PROFILE.
-# Source: outputs/routing_calibration_selected.json ("types.*.selected_profile"),
-# plus red_comp_strength from outputs/red_comp_calibration_selected.json
-# (second, coordinate-wise stage; only deep_lowlight beat the global 0.75).
-TYPE_PROFILES = {
-    "clear_blue": {"wb_gain_cap": 2.0, "gamma_strength": 1.4, "clahe_clip_scale": 0.8, "dcp_omega": 0.70,
-                   "red_comp_strength": 0.75},
-    "green_turbid": dict(GLOBAL_PROFILE),
-    # deep water loses the most red light -> by far the strongest compensation
-    "deep_lowlight": {"wb_gain_cap": 2.0, "gamma_strength": 1.4, "clahe_clip_scale": 1.3, "dcp_omega": 0.70,
-                      "red_comp_strength": 4.0},
-    "hazy_bright": dict(GLOBAL_PROFILE),
-}
+
+def load_calibrated_profiles(path: str = PROFILES_PATH) -> tuple:
+    """
+    (global_profile, {water_type: profile}) as written by the calibration
+    scripts (scripts/calibrate_all.py). Falls back to NEUTRAL_PROFILE for
+    everything if the pipeline has not been calibrated yet.
+    """
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return data["global"], data["types"]
+    except FileNotFoundError:
+        return dict(NEUTRAL_PROFILE), {wt: dict(NEUTRAL_PROFILE) for wt in WATER_TYPES}
+
+
+def save_calibrated_profiles(global_profile: dict, type_profiles: dict, note: str, path: str = PROFILES_PATH) -> None:
+    data = {
+        "note": note,
+        "global": {k: float(global_profile[k]) for k in PROFILE_KEYS},
+        "types": {wt: {k: float(type_profiles[wt][k]) for k in PROFILE_KEYS} for wt in WATER_TYPES},
+    }
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+# GLOBAL_PROFILE: the single profile used for every image when routing is OFF
+# (the Module 5 ablation arm). TYPE_PROFILES: one per water type; a type keeps
+# its own values only where they beat GLOBAL_PROFILE on its calibration images
+# (paired one-sided Wilcoxon, p < 0.05), otherwise it inherits the global ones.
+# Both are tuned with the same grid, objective and data, so the ablation
+# compares per-type vs. one equally tuned parameter set.
+GLOBAL_PROFILE, TYPE_PROFILES = load_calibrated_profiles()
 
 
 def _compute_features(img_bgr: np.ndarray) -> dict:

@@ -1,25 +1,58 @@
 {
   "objective": "J = PSNR/sd(PSNR) + SSIM/sd(SSIM), sd from neutral-profile calibration scores",
-  "sd_psnr": 3.1965193013879913,
-  "sd_ssim": 0.1396779977369276,
+  "sd_psnr": 2.6697261637511374,
+  "sd_ssim": 0.07512654328728596,
   "n_calibration_images": 268,
-  "n_candidate_settings": 182,
+  "n_candidate_settings": 245,
+  "grid": {
+    "wb_gain_cap": [
+      1.5,
+      2.0,
+      3.0
+    ],
+    "gamma_strength": [
+      0.6,
+      0.75,
+      0.9,
+      1.05,
+      1.2
+    ],
+    "clahe_clip_scale": [
+      0.6,
+      0.8,
+      1.0,
+      1.3
+    ],
+    "dcp_omega": [
+      0.5,
+      0.6,
+      0.7,
+      0.85
+    ]
+  },
+  "red_strengths_used": {
+    "global": 0.75,
+    "clear_blue": 0.75,
+    "green_turbid": 0.75,
+    "deep_lowlight": 0.75,
+    "hazy_bright": 0.75
+  },
   "global_profile": {
-    "wb_gain_cap": 2.0,
-    "gamma_strength": 1.4,
-    "clahe_clip_scale": 1.0,
-    "dcp_omega": 0.7
+    "wb_gain_cap": 1.5,
+    "gamma_strength": 1.05,
+    "clahe_clip_scale": 0.6,
+    "dcp_omega": 0.5
   },
   "global_vs_neutral_all_calibration": {
     "neutral": {
-      "psnr": 15.192291782788706,
-      "ssim": 0.7731585114222942,
-      "J": 10.288052904229405
+      "psnr": 16.707035682247092,
+      "ssim": 0.8299052833550714,
+      "J": 17.304723745262844
     },
     "global_tuned": {
-      "psnr": 16.735033286167496,
-      "ssim": 0.8151120207203301,
-      "J": 11.071043344907169
+      "psnr": 17.926746701449655,
+      "ssim": 0.8590589250059395,
+      "J": 18.14965167759098
     }
   },
   "types": {
@@ -32,39 +65,39 @@
         "dcp_omega": 0.8
       },
       "best_per_type_profile": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 1.4,
-        "clahe_clip_scale": 0.8,
-        "dcp_omega": 0.7
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 0.9,
+        "clahe_clip_scale": 0.6,
+        "dcp_omega": 0.5
       },
-      "p_better_than_global": 0.006085698685142111,
+      "p_better_than_global": 0.14259279169626238,
       "selected_profile": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 1.4,
-        "clahe_clip_scale": 0.8,
-        "dcp_omega": 0.7
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 1.05,
+        "clahe_clip_scale": 0.6,
+        "dcp_omega": 0.5
       },
-      "selected": "per-type",
+      "selected": "fallback-to-global",
       "calibration_scores": {
         "hand_set": {
-          "psnr": 14.471259632881909,
-          "ssim": 0.7549335406598058,
-          "J": 9.932006537877607
+          "psnr": 17.270915809346228,
+          "ssim": 0.8404022960197751,
+          "J": 17.65566088585871
         },
         "neutral": {
-          "psnr": 15.318141144091976,
-          "ssim": 0.7925293273231259,
-          "J": 10.466105595349516
+          "psnr": 16.57165374183459,
+          "ssim": 0.8284654407986434,
+          "J": 17.234848134050875
         },
         "global_tuned": {
-          "psnr": 16.865356488317698,
-          "ssim": 0.8265554580769964,
-          "J": 11.193740964545214
+          "psnr": 17.980638935407956,
+          "ssim": 0.8668926697301164,
+          "J": 18.274112099209315
         },
         "per_type_best": {
-          "psnr": 16.853773311665392,
-          "ssim": 0.8324336148344894,
-          "J": 11.232200907298113
+          "psnr": 18.23800907451152,
+          "ssim": 0.8620754250340443,
+          "J": 18.306393556614527
         }
       }
     },
@@ -77,39 +110,39 @@
         "dcp_omega": 0.9
       },
       "best_per_type_profile": {
-        "wb_gain_cap": 3.0,
-        "gamma_strength": 1.2,
-        "clahe_clip_scale": 1.0,
-        "dcp_omega": 0.7
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 1.05,
+        "clahe_clip_scale": 0.8,
+        "dcp_omega": 0.6
       },
-      "p_better_than_global": 0.18971327762119472,
+      "p_better_than_global": 0.07452878192998469,
       "selected_profile": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 1.4,
-        "clahe_clip_scale": 1.0,
-        "dcp_omega": 0.7
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 1.05,
+        "clahe_clip_scale": 0.6,
+        "dcp_omega": 0.5
       },
       "selected": "fallback-to-global",
       "calibration_scores": {
         "hand_set": {
-          "psnr": 16.888978838968505,
-          "ssim": 0.8432972060604634,
-          "J": 11.32099058055621
+          "psnr": 17.074958873256875,
+          "ssim": 0.847995816069474,
+          "J": 17.68333764054272
         },
         "neutral": {
-          "psnr": 17.03826040699002,
-          "ssim": 0.8489891023955217,
-          "J": 11.408441996756313
+          "psnr": 17.787111023218056,
+          "ssim": 0.8605438847646879,
+          "J": 18.11711441970582
         },
         "global_tuned": {
-          "psnr": 18.188497351980146,
-          "ssim": 0.8565229924849089,
-          "J": 11.822220005008035
+          "psnr": 18.488681588103585,
+          "ssim": 0.8629970255208798,
+          "J": 18.412555331569692
         },
         "per_type_best": {
-          "psnr": 18.241508687999744,
-          "ssim": 0.8614019621310635,
-          "J": 11.8737342093576
+          "psnr": 18.620250084945106,
+          "ssim": 0.8696697049691892,
+          "J": 18.550656176156032
         }
       }
     },
@@ -122,39 +155,39 @@
         "dcp_omega": 0.7
       },
       "best_per_type_profile": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 1.4,
-        "clahe_clip_scale": 1.3,
-        "dcp_omega": 0.7
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 1.05,
+        "clahe_clip_scale": 0.6,
+        "dcp_omega": 0.5
       },
-      "p_better_than_global": 0.0060546305030584335,
+      "p_better_than_global": 1.0,
       "selected_profile": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 1.4,
-        "clahe_clip_scale": 1.3,
-        "dcp_omega": 0.7
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 1.05,
+        "clahe_clip_scale": 0.6,
+        "dcp_omega": 0.5
       },
-      "selected": "per-type",
+      "selected": "fallback-to-global",
       "calibration_scores": {
         "hand_set": {
-          "psnr": 14.087722614062828,
-          "ssim": 0.6866145382978416,
-          "J": 9.322902855730186
+          "psnr": 15.824821621782021,
+          "ssim": 0.7782508776081919,
+          "J": 16.286707283338536
         },
         "neutral": {
-          "psnr": 11.61632601144951,
-          "ssim": 0.5203226006916027,
-          "J": 7.359212634836199
+          "psnr": 16.08308648541306,
+          "ssim": 0.7961486686948561,
+          "J": 16.621680871732263
         },
         "global_tuned": {
-          "psnr": 13.777682519878548,
-          "ssim": 0.6788750028945962,
-          "J": 9.170499985938283
+          "psnr": 17.286416249486507,
+          "ssim": 0.829603406398213,
+          "J": 17.51772422358924
         },
         "per_type_best": {
-          "psnr": 14.147120250515501,
-          "ssim": 0.6876125925951535,
-          "J": 9.348630222862134
+          "psnr": 17.286416249486507,
+          "ssim": 0.829603406398213,
+          "J": 17.51772422358924
         }
       }
     },
@@ -167,39 +200,39 @@
         "dcp_omega": 0.92
       },
       "best_per_type_profile": {
-        "wb_gain_cap": 2.0,
+        "wb_gain_cap": 1.5,
         "gamma_strength": 1.2,
-        "clahe_clip_scale": 1.3,
-        "dcp_omega": 0.7
-      },
-      "p_better_than_global": 0.262237548828125,
-      "selected_profile": {
-        "wb_gain_cap": 2.0,
-        "gamma_strength": 1.4,
         "clahe_clip_scale": 1.0,
-        "dcp_omega": 0.7
+        "dcp_omega": 0.6
       },
-      "selected": "fallback-to-global",
+      "p_better_than_global": 0.009033203125,
+      "selected_profile": {
+        "wb_gain_cap": 1.5,
+        "gamma_strength": 1.2,
+        "clahe_clip_scale": 1.0,
+        "dcp_omega": 0.6
+      },
+      "selected": "per-type",
       "calibration_scores": {
         "hand_set": {
-          "psnr": 14.734894333917243,
-          "ssim": 0.8209057410900169,
-          "J": 10.486798430408037
+          "psnr": 16.711969487535377,
+          "ssim": 0.8226111503335397,
+          "J": 17.209480511676183
         },
         "neutral": {
-          "psnr": 16.556887384399783,
-          "ssim": 0.8522562345614353,
-          "J": 11.281239581328085
+          "psnr": 17.342065572668222,
+          "ssim": 0.8482357067465859,
+          "J": 17.78658101879017
         },
         "global_tuned": {
-          "psnr": 17.68371777306989,
-          "ssim": 0.8436841839203169,
-          "J": 11.572387432664867
+          "psnr": 17.276103889050397,
+          "ssim": 0.807333047412874,
+          "J": 17.217423563458446
         },
         "per_type_best": {
-          "psnr": 17.706984221051112,
-          "ssim": 0.8557049134817567,
-          "J": 11.6657264088927
+          "psnr": 17.800250665659167,
+          "ssim": 0.8508667767847543,
+          "J": 17.993225367656617
         }
       }
     }

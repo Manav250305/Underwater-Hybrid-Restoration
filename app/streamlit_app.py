@@ -44,7 +44,7 @@ st.set_page_config(page_title="Underwater restoration", page_icon=":material/wat
 MAX_UPLOAD_DIM = 1024  # downscale arbitrary uploads so the pipeline stays interactive
 # Bump whenever run_all_pipelines' output changes (new baselines, new diagnostics):
 # it is part of the cache key, so results cached by an older pipeline are never reused.
-PIPELINE_CACHE_VERSION = 3
+PIPELINE_CACHE_VERSION = 4
 
 # Fixed method order + colors; must match chartCategoricalColors in .streamlit/config.toml
 METHOD_ORDER = ["Raw", "Conventional HE", "CLAHE-only", "UDCP", "Proposed hybrid"]
@@ -73,23 +73,19 @@ MODULE_INFO = {
         "short": "Restores the red light water absorbed, then neutralises the overall colour cast.",
         "detail": "Water absorbs red light first, so underwater images lack red and look blue-green. Red is "
                   "first rebuilt from the green channel where green is strong (Ancuti et al., 2018): "
-                  "R′ = R + s·(mean G − mean R)·(1 − R)·G. The strength s is routed per water type and is "
-                  "highest for deep water. Gray-world white balance then scales each channel so the "
+                  "R′ = R + s·(mean G − mean R)·(1 − R)·G. Its strength s comes from the profile (searched per "
+                  "water type; one global strength won calibration). Gray-world white balance then scales each channel so the "
                   "average colour becomes neutral grey, ignoring the brightest highlights, with a cap on "
                   "how far any channel can be boosted.",
     },
     "m2": {
         "title": "Module 2 · Adaptive gamma", "icon": ":material/brightness_6:", "novel": False,
-        "short": "Applies a gamma curve to adjust overall brightness; with the calibrated profile it "
-                 "brightens almost every image.",
-        "detail": "Each pixel becomes output = input^(1/γ), so γ > 1 brightens and γ < 1 darkens. γ starts "
-                  "from the image's mean brightness, γ = log(0.5) / log(mean), with a contrast adjustment. "
-                  "It is then multiplied by the profile's gamma strength (1.4 after calibration) and "
-                  "limited to 0.4–2.2. Known issue: that formula was written for the opposite convention "
-                  "(output = input^γ), so the adaptive part runs backwards and darker images get *less* "
-                  "brightening than brighter ones. The calibrated ×1.4 multiplier compensates, so the stage "
-                  "still brightens about 96% of images, but fixing the formula would require "
-                  "re-calibrating the pipeline.",
+        "short": "Brightens dark images and tones down bright ones, based on the image's own brightness.",
+        "detail": "Each pixel becomes output = input^γ, so γ < 1 brightens and γ > 1 darkens. γ is chosen so "
+                  "the mean brightness moves toward mid-grey, γ = log(0.5) / log(mean), with a stronger "
+                  "correction for low-contrast images. It is then scaled by the profile's gamma strength and "
+                  "limited to 0.4–2.2. (An earlier version applied input^(1/γ), which inverted the adaptivity; "
+                  "this was fixed and the pipeline re-calibrated.)",
     },
     "m3": {
         "title": "Module 3 · CLAHE in CIELAB", "icon": ":material/contrast:", "novel": False,
@@ -129,7 +125,7 @@ MODULE_INFO = {
                   "split to the α that best matched the UIEB references. It needs no reference image at "
                   "run time and costs one feature pass. It replaces an earlier version that searched for "
                   "the α maximising UCIQE+UIQM. The project found those scores reward extreme blends and "
-                  "lower fidelity (about −1.5 dB PSNR on held-out images).",
+                  "lower fidelity on held-out images.",
     },
     "m8": {
         "title": "Module 8 · Quantitative evaluation", "icon": ":material/analytics:", "novel": False,
@@ -477,7 +473,7 @@ if tab_stages.open:
         with c3:
             image_card(diag["gamma_corrected"], "3 · Gamma correction", f"{stem}_gamma.png",
                        key="dl_stage_gamma", caption=f"γ = {diag['gamma_value']:.3f}",
-                       note="Gamma curve output = input^(1/γ): γ > 1 brightens, γ < 1 darkens.")
+                       note=MODULE_INFO["m2"]["short"] + " γ < 1 brightens, γ > 1 darkens.")
 
         st.subheader("Parallel streams and fusion")
         st.caption("The corrected image is processed two ways. The CLAHE stream recovers local detail and the "
@@ -510,8 +506,9 @@ if tab_stages.open:
                 hide_index=True, width="stretch",
             )
             st.caption("These five numbers are everything Module 5 changes. Multipliers scale each stage's "
-                       "own adaptive formula, so 1.0 means 'no change'. The profiles were calibrated on 30% of "
-                       "UIEB (calibrate_routing.py, calibrate_red_compensation.py) and evaluated on the other 70%.")
+                       "own adaptive formula, so 1.0 means 'no change'. They are loaded from "
+                       "modules/calibrated_profiles.json, calibrated on 30% of UIEB (scripts/calibrate_all.py) "
+                       "and evaluated on the other 70%.")
 
         st.subheader("Module 7 · per-image fusion weight")
         st.markdown("The fusion needs to know how much to trust each stream for *this* image. A hazy image "
@@ -659,7 +656,7 @@ if tab_about.open:
                 st.markdown(":material/route: **Module 5 · water-type routing with red-channel compensation**")
                 st.caption("Classifies each image as clear blue, green turbid, deep low-light or hazy bright, and "
                            "routes how strongly each stage acts, including attenuation-aware red-channel "
-                           "compensation (deep water loses the most red, so it gets the strongest).")
+                           "compensation, whose strength is calibrated rather than hand-set.")
             with st.container(border=True):
                 st.markdown(":material/tune: **Module 7 · calibrated per-image fusion weight**")
                 st.caption("Predicts the CLAHE/DCP blend α from no-reference image statistics. It replaces a "

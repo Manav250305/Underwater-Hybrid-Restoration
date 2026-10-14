@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Re-run the full evaluation: five configs over all 890 UIEB pairs, then the
 # analysis tables (held-out test split) and the results docx.
-# Calibration (calibration split only) must be done first, in this order:
-#   1. scripts/calibrate_routing.py           -> copy profiles into modules/water_type_classifier.py
-#   2. scripts/calibrate_red_compensation.py  -> copy red_comp_strength into the same profiles
-#   3. scripts/calibrate_fusion_alpha.py      -> writes modules/fusion_alpha_model.json
+# Calibrate first (calibration split only):
+#   python scripts/calibrate_all.py --workers 8
+# which writes modules/calibrated_profiles.json and modules/fusion_alpha_model.json.
 set -euo pipefail
 cd "$(dirname "$0")/.."   # run from the repo root (outputs/ paths are relative to it)
 PY=${PY:-dip/bin/python}

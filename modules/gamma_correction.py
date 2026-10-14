@@ -3,6 +3,12 @@ Module 2 — Adaptive Gamma Correction
 Computes gamma from the image's own luminance histogram (mean brightness,
 std) so dark low-key underwater frames get stronger correction than
 already well-lit frames.
+
+Convention used throughout: output = input ** gamma (values in [0, 1]), so
+gamma < 1 brightens and gamma > 1 darkens. compute_adaptive_gamma derives
+gamma for exactly this convention, and adaptive_gamma_correction applies it.
+(An earlier version applied input ** (1 / gamma), which inverted the
+adaptivity: dark images were brightened less than bright ones.)
 """
 
 import cv2
@@ -42,6 +48,6 @@ def adaptive_gamma_correction(img_bgr: np.ndarray, gamma: float = None) -> np.nd
     if gamma is None:
         gamma = compute_adaptive_gamma(img_bgr)
 
-    inv_gamma = 1.0 / gamma
-    table = np.array([((i / 255.0) ** inv_gamma) * 255.0 for i in range(256)]).astype(np.uint8)
+    # output = input ** gamma, matching compute_adaptive_gamma (gamma < 1 brightens)
+    table = np.array([((i / 255.0) ** gamma) * 255.0 for i in range(256)]).astype(np.uint8)
     return cv2.LUT(img_bgr, table)
